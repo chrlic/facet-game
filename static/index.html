@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FACET</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<style>
+  :root{
+    --bg:#0f1320; --panel:#171c2e; --ink:#e7ecf5; --muted:#8b95ad;
+    --F:#2a3147; --R:#2d5fa6; --B:#2f8f5b; --N:#c4772a; --T:#caa12e;
+    --p0:#f4f6fb; --p1:#10131c; --hl:#5be0a8; --sel:#ffd84d; --last:#7aa2ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:980px;margin:0 auto;padding:20px}
+  h1{font-weight:800;letter-spacing:3px;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
+  .layout{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .boardwrap{background:var(--panel);padding:14px;border-radius:14px;
+             box-shadow:0 10px 40px #0008;max-width:100%}
+  .grid{display:grid;gap:var(--gap);--cell:58px;--gap:4px}
+  .cell{position:relative;border-radius:9px;display:flex;align-items:center;
+        justify-content:center;cursor:default;user-select:none;
+        transition:transform .07s, box-shadow .12s}
+  .cell .feat{position:absolute;font-size:32px;line-height:1;color:#ffffff99;
+        pointer-events:none;font-weight:400}
+  .cell .featlabel{position:absolute;top:3px;left:5px;font-size:9px;font-weight:800;
+        color:#ffffff66;letter-spacing:1px;pointer-events:none}
+  .cell.F{background:var(--F)} .cell.R{background:var(--R)}
+  .cell.B{background:var(--B)} .cell.N{background:var(--N)}
+  .cell.T{background:var(--T)}
+  .cell.throne{outline:2px solid #ffe9a8aa}
+  .cell.legal{cursor:pointer;box-shadow:inset 0 0 0 3px var(--hl)}
+  .cell.legal:hover{transform:scale(1.04)}
+  .cell.sel{box-shadow:inset 0 0 0 3px var(--sel)}
+  .cell.last{box-shadow:inset 0 0 0 3px var(--last);
+        animation:fadeHighlight 5s ease-out forwards}
+  .cell.target::after{content:"";position:absolute;width:16px;height:16px;
+        border-radius:50%;background:var(--hl);opacity:.55}
+  .piece{width:40px;height:40px;border-radius:50%;display:flex;
+        align-items:center;justify-content:center;font-size:33px;line-height:1;
+        z-index:2}
+  .piece .pi{filter:drop-shadow(0 1px 1px #0006);
+        display:block;transform:translateY(-2px)}
+  /* white stones: dark icon on light disc with subtle dark ring */
+  .piece.p0{background:radial-gradient(circle at 32% 30%,#fff,#c7cede);color:#10131c;
+        box-shadow:0 0 0 2px #00000040,0 3px 7px #0009}
+  .piece.p1{background:radial-gradient(circle at 32% 30%,#7882a8,#2a304a);color:#f0f4ff;
+        box-shadow:0 0 0 2.5px #c0caee,0 3px 7px #0009}
+  .piece.mine{cursor:pointer}
+  .piece.mine:hover{filter:brightness(1.08)}
+  .piece.crown{box-shadow:0 0 0 3px var(--sel),0 3px 8px #000a}
+  .side{flex:1;min-width:260px}
+  .card{background:var(--panel);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{background:#243049;color:var(--ink);border:1px solid #33415f;
+        padding:8px 12px;border-radius:9px;cursor:pointer;font-weight:600}
+  button:hover{background:#2c3a58}
+  button.primary{background:var(--hl);color:#06281c;border-color:transparent}
+  select{background:#243049;color:var(--ink);border:1px solid #33415f;
+        padding:7px;border-radius:8px}
+  .turn{font-weight:700}
+  .legend div{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+  .sw{width:20px;height:20px;border-radius:5px;flex:none}
+  .status{font-size:15px;min-height:22px}
+  .win{font-size:20px;font-weight:800}
+  .muted{color:var(--muted);font-size:13px;line-height:1.5}
+  .thinking{color:var(--hl)}
+  kbd{background:#0c1020;border:1px solid #33415f;border-radius:5px;padding:1px 6px;font-size:12px}
+  .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);
+        background:#c0392b;color:#fff;padding:12px 20px;border-radius:10px;
+        font-size:14px;font-weight:600;z-index:100;box-shadow:0 6px 24px #000a;
+        max-width:90vw;text-align:center;
+        animation:toastIn .25s ease-out}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-12px)}
+        to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  .dlbtn{background:none;border:1px solid #33415f;color:var(--muted);font-size:12px;
+        padding:4px 10px;border-radius:6px;cursor:pointer}
+  .dlbtn:hover{background:#243049;color:var(--ink)}
+  .helpbtn{background:none;border:1px solid #33415f;width:32px;height:32px;
+        border-radius:50%;font-size:16px;font-weight:800;padding:0;display:flex;
+        align-items:center;justify-content:center;flex:none;color:var(--muted)}
+  .helpbtn:hover{background:#243049;color:var(--ink)}
+  .helpbtn.active{background:var(--hl);color:#06281c;border-color:transparent}
+  .rules{line-height:1.65}
+  .rules h3{margin:14px 0 4px;font-size:14px;color:var(--ink)}
+  .rules h3:first-child{margin-top:0}
+  .rules p,.rules ul{margin:0 0 6px;font-size:13px;color:var(--muted)}
+  .rules ul{padding-left:18px}
+  .rules li{margin:2px 0}
+  .rules b{color:var(--ink)}
+  .rules .tile-ex{display:inline-flex;align-items:center;gap:3px;
+        background:#ffffff12;border-radius:4px;padding:1px 6px;font-size:12px}
+  .rules .tile-ex .sw{width:14px;height:14px;border-radius:3px}
+
+  @keyframes fadeHighlight{
+    0%,60%{box-shadow:inset 0 0 0 3px var(--last)}
+    100%{box-shadow:inset 0 0 0 3px transparent}
+  }
+
+  /* ---- responsive: tablets ---- */
+  @media(max-width:720px){
+    .wrap{padding:12px 8px}
+    .layout{flex-direction:column;align-items:center;gap:14px}
+    .boardwrap{padding:10px;border-radius:10px}
+    .grid{--cell:50px;--gap:3px}
+    .piece{width:34px;height:34px;font-size:27px}
+    .cell .feat{font-size:26px}
+    .cell .featlabel{font-size:8px;top:2px;left:3px}
+    .cell.target::after{width:13px;height:13px}
+    .side{min-width:0;width:100%;max-width:460px}
+    h1{font-size:22px}
+    .sub{font-size:12px;margin-bottom:10px}
+  }
+
+  /* ---- responsive: phones ---- */
+  @media(max-width:480px){
+    .wrap{padding:8px 4px}
+    .grid{--gap:2px}
+    .boardwrap{padding:6px;border-radius:8px;width:100%}
+    .piece{width:calc(var(--cell) * 0.72);height:calc(var(--cell) * 0.72);
+           font-size:calc(var(--cell) * 0.52)}
+    .piece .pi{transform:translateY(-1px)}
+    .cell{border-radius:6px}
+    .cell .feat{font-size:calc(var(--cell) * 0.5)}
+    .cell .featlabel{font-size:7px;top:1px;left:2px}
+    .cell.target::after{width:10px;height:10px}
+    .cell.legal{box-shadow:inset 0 0 0 2px var(--hl)}
+    .cell.sel{box-shadow:inset 0 0 0 2px var(--sel)}
+    .cell.last{box-shadow:inset 0 0 0 2px var(--last);
+          animation:fadeHighlightSm 5s ease-out forwards}
+    @keyframes fadeHighlightSm{
+      0%,60%{box-shadow:inset 0 0 0 2px var(--last)}
+      100%{box-shadow:inset 0 0 0 2px transparent}
+    }
+    .cell.throne{outline-width:1px}
+    .side{max-width:100%}
+    .card{padding:10px 12px;margin-bottom:10px;border-radius:8px}
+    h1{font-size:18px;letter-spacing:2px}
+    .sub{font-size:11px;margin-bottom:8px}
+    .legend div{font-size:12px;gap:6px;margin:4px 0}
+    .sw{width:16px;height:16px;border-radius:4px}
+    button{padding:10px 14px;font-size:14px}
+    select{padding:8px;font-size:14px}
+    .status{font-size:13px}
+    .win{font-size:17px}
+    .turn{font-size:14px}
+    .muted{font-size:12px}
+  }
+
+  /* ---- responsive: very small phones ---- */
+  @media(max-width:360px){
+    .grid{--gap:1px}
+    .boardwrap{padding:4px}
+  }
+
+  /* prevent iOS double-tap zoom on game area */
+  .boardwrap{touch-action:manipulation}
+  .cell{touch-action:manipulation}
+  .piece{touch-action:manipulation}
+</style>
+</head>
+<body>
+<div id="app" class="wrap">
+  <div class="toast" v-if="errorMsg">{{ errorMsg }}</div>
+  <h1>F A C E T</h1>
+  <p class="sub">Your tile grants your move. Hold both thrones — or capture the enemy monarch.</p>
+
+  <div class="layout">
+    <div class="boardwrap">
+      <div class="grid" :style="gridStyle">
+        <template v-for="cell in cellsInDisplayOrder" :key="cell.k">
+          <div :class="cellClass(cell)" @click="onCellClick(cell)">
+            <span class="featlabel" v-if="cell.g!=='F'">{{ cell.g }}</span>
+            <span class="feat" v-if="featIcon(cell.g)">{{ featIcon(cell.g) }}</span>
+            <div v-if="cell.piece"
+                 :class="pieceClass(cell)"
+                 @click.stop="onPieceClick(cell)"
+                 :title="pieceTitle(cell)">
+              <span class="pi">{{ pieceIcon(cell) }}</span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <span class="turn" v-html="turnLabel"></span>
+          <span class="thinking" v-if="aiThinking">AI thinking…</span>
+        </div>
+        <div class="status" v-html="statusLine"></div>
+        <div v-if="winner!==null" class="win">{{ winnerText }}</div>
+
+        <!-- AI offers a draw -->
+        <div v-if="aiDrawOffer && winner===null" style="margin-top:8px">
+          <span class="muted">The AI offers a draw.</span>
+          <button style="margin-left:8px" @click="acceptAiDraw">Accept</button>
+          <button style="margin-left:4px" @click="aiDrawOffer=false">Decline</button>
+        </div>
+
+        <!-- Human offers a draw -->
+        <div v-if="winner===null && !aiDrawOffer && toMove===0 && !busy" style="margin-top:8px">
+          <button class="dlbtn" @click="offerDraw" :disabled="drawBusy">Offer draw</button>
+          <span v-if="drawResponse" class="muted" style="margin-left:8px">{{ drawResponse }}</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <label class="muted">Board</label>
+          <select v-model="boardId">
+            <option v-for="(b,id) in boards" :key="id" :value="id">{{ b.name }}</option>
+          </select>
+        </div>
+        <div class="muted" style="margin:4px 0 8px" v-if="boards[boardId]">{{ boards[boardId].desc }}</div>
+        <div class="row">
+          <label class="muted">Difficulty</label>
+          <select v-model="difficulty">
+            <option value="easy">Easy</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard (slow)</option>
+          </select>
+          <button class="primary" @click="newGame">New game</button>
+          <button :class="['helpbtn', {active:showRules}]" @click="showRules=!showRules" title="Rules &amp; help">?</button>
+        </div>
+      </div>
+
+      <div class="card rules" v-show="showRules">
+        <h3>Objective</h3>
+        <p>Win by <b>Regicide</b> (capture the enemy ♚ Monarch),
+           <b>Coronation</b> (hold <b>all</b> Throne tiles for a full round — your opponent
+           gets one chance to contest before you win),
+           or <b>Elimination</b> (capture all enemy agents, leaving a bare monarch).</p>
+        <p>The game is a <b>draw</b> if the side to move has no legal moves (stalemate),
+           or by <b>mutual agreement</b> — either side can offer a draw, and the
+           opponent may accept or decline.</p>
+
+        <h3>Terrain tiles</h3>
+        <p>A stone's move is granted by the <b>tile it stands on</b> — not by the piece itself.
+           Moving to a different tile type changes what you can do next turn.</p>
+        <ul>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--F)"></span> <b>•</b> Field</span>
+              — step 1 square in any direction (8 neighbours)</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--R)"></span> <b>♜</b> Tower</span>
+              — slide any distance horizontally or vertically (rook)</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--B)"></span> <b>♝</b> Spire</span>
+              — slide any distance diagonally (bishop)</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--N)"></span> <b>♞</b> Gate</span>
+              — leap in an L-shape, 2+1 squares (knight); jumps over pieces</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--T)"></span> <b>♛</b> Throne</span>
+              — slide any distance in all 8 directions (queen) + win objective</li>
+        </ul>
+
+        <h3>The Monarch ♚</h3>
+        <p>Each side has one Monarch (center of the back row). The Monarch <b>ignores terrain</b>
+           — it always moves exactly 1 step in any direction, regardless of the tile
+           it stands on. Losing your Monarch loses the game.</p>
+
+        <h3>Capture</h3>
+        <p>Land on an enemy stone to capture it (remove it from the board).
+           You may <b>not</b> land on your own stones. Sliders (Tower, Spire, Throne) are
+           <b>blocked</b> by any piece in their path — they stop on or before it.
+           The Gate <b>leaps</b> over everything.</p>
+
+        <h3>How to play</h3>
+        <p>You are <b>white</b> (bottom row) and move first.
+           Tap/click a stone to select it — legal destinations light up green.
+           Tap a green square to move. The AI plays black automatically.</p>
+        <p>Each stone's icon shows the move it currently has (from its tile).
+           The faint watermark on each tile shows which move that tile grants.</p>
+      </div>
+
+      <div class="card legend" v-show="!showRules">
+        <div><span class="sw" style="background:var(--F)"></span> <b>•</b>&nbsp; Field — step 1</div>
+        <div><span class="sw" style="background:var(--R)"></span> <b>♜</b>&nbsp; Tower — rook slide</div>
+        <div><span class="sw" style="background:var(--B)"></span> <b>♝</b>&nbsp; Spire — bishop slide</div>
+        <div><span class="sw" style="background:var(--N)"></span> <b>♞</b>&nbsp; Gate — knight leap</div>
+        <div><span class="sw" style="background:var(--T)"></span> <b>♛</b>&nbsp; Throne — queen slide</div>
+        <div style="margin-top:4px"><span class="sw" style="background:#56608a"></span> <b>♚</b>&nbsp; Monarch — always step 1</div>
+      </div>
+
+      <div class="card" v-if="lastInfo">
+        <div class="muted">AI last search — depth {{lastInfo.depth}},
+          {{lastInfo.nodes.toLocaleString()}} nodes, eval {{lastInfo.score}}</div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <b style="font-size:13px">Bug report</b>
+          <span class="muted">{{ eventLog.length }} events logged</span>
+        </div>
+        <textarea v-model="bugDescription" rows="3"
+                  placeholder="Describe what went wrong or looked off…"
+                  style="width:100%;resize:vertical;background:#0c1020;color:var(--ink);
+                         border:1px solid #33415f;border-radius:8px;padding:8px;
+                         font-size:13px;font-family:inherit"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="dlbtn" @click="downloadLog">Download full report</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+createApp({
+  data(){return{
+    id:null, state:null, difficulty:"normal", boardId:"classic",
+    boards:{},
+    selected:null,           // [x,y] of selected piece
+    targets:[],              // list of [x,y] legal destinations for selected
+    lastMove:null,           // [[x,y],[x,y]]
+    aiThinking:false, lastInfo:null, busy:false,
+    showRules:false, _lastTimer:null,
+    errorMsg:null, _errTimer:null,
+    eventLog:[],
+    aiDrawOffer:false, drawBusy:false, drawResponse:null,
+    bugDescription:'',
+  }},
+  computed:{
+    W(){ return this.state ? this.state.W : 7; },
+    H(){ return this.state ? this.state.H : 7; },
+    winner(){ return this.state ? this.state.winner : null; },
+    toMove(){ return this.state ? this.state.to_move : 0; },
+    gridStyle(){
+      const mob = window.innerWidth <= 480;
+      const cell = mob ? `calc((100vw - 40px) / ${this.W})` : (this.W > 7 ? '48px' : '58px');
+      return {
+        'grid-template-columns': `repeat(${this.W}, var(--cell, ${cell}))`,
+        'grid-template-rows': `repeat(${this.H}, var(--cell, ${cell}))`,
+        '--cell': cell,
+      };
+    },
+    cellsInDisplayOrder(){
+      if(!this.state) return [];
+      const out=[];
+      for(let y=this.H-1;y>=0;y--) for(let x=0;x<this.W;x++){
+        const k=`${x},${y}`;
+        out.push({k, x, y, g:this.state.terrain[k],
+                  piece:this.state.pieces[k]||null});
+      }
+      return out;
+    },
+    turnLabel(){
+      if(this.winner!==null) return "Game over";
+      return this.toMove===0 ? "Your move (white)"
+                             : "AI to move (black)";
+    },
+    statusLine(){
+      if(!this.state) return "";
+      if(this.winner!==null) return "";
+      const t=this.state.thrones.map(([x,y])=>{
+        const occ=this.state.pieces[`${x},${y}`];
+        return occ? (occ.owner===0?'●':'○') : '·';
+      }).join(' ');
+      return `Thrones: <b>${t}</b> &nbsp;<span class="muted">(hold both at the start of your turn to win)</span>`;
+    },
+    winnerText(){
+      if(this.winner==='draw') return "Draw — by agreement.";
+      if(this.winner===0) return "White (you) win! ♛";
+      if(this.winner===1) return "Black (AI) wins.";
+      return "";
+    },
+  },
+  methods:{
+    logEvent(kind, detail={}){
+      this.eventLog.push({t:new Date().toISOString(), event:kind, ...detail});
+    },
+    showError(msg){
+      this.errorMsg=msg;
+      if(this._errTimer) clearTimeout(this._errTimer);
+      this._errTimer=setTimeout(()=>{ this.errorMsg=null; },6000);
+      this.logEvent('error',{msg});
+    },
+    async api(path, body){
+      const opt = body? {method:'POST',headers:{'Content-Type':'application/json'},
+                         body:JSON.stringify(body)} : {};
+      try{
+        const r = await fetch(path, opt);
+        const data = await r.json();
+        if(!r.ok && data.error) this.showError(data.error);
+        return data;
+      }catch(e){
+        this.showError(`Network error: ${e.message}`);
+        return {error:e.message};
+      }
+    },
+    async newGame(){
+      this.busy=true; this.selected=null; this.targets=[]; this.lastMove=null;
+      this.lastInfo=null; this.aiThinking=false; this.errorMsg=null;
+      this.eventLog=[]; this.aiDrawOffer=false; this.drawResponse=null;
+      this.bugDescription='';
+      const r = await this.api('/api/new',{difficulty:this.difficulty, board:this.boardId});
+      if(r.error) { this.busy=false; return; }
+      this.id=r.id; this.state=r.state; this.busy=false;
+      this.logEvent('new_game',{id:r.id, difficulty:this.difficulty, board:this.boardId});
+    },
+    featIcon(g){ return {R:'♜',B:'♝',N:'♞',T:'♛',F:''}[g] || ''; },
+    pieceIcon(c){
+      if(c.piece.monarch) return '♚';            // monarch ignores terrain
+      const g=this.state.terrain[`${c.x},${c.y}`];
+      return g==='F' ? '•' : this.featIcon(g);   // shows the move it has NOW
+    },
+    pieceTitle(c){
+      if(c.piece.monarch) return 'Monarch — always steps 1 (ignores terrain)';
+      const names={R:'Tower → rook slide',B:'Spire → bishop slide',
+                   N:'Gate → knight leap',T:'Throne → queen slide',
+                   F:'Field → step 1'};
+      return names[this.state.terrain[`${c.x},${c.y}`]];
+    },
+    showLastMove(mv){
+      if(this._lastTimer) clearTimeout(this._lastTimer);
+      this.lastMove=mv;
+      this._lastTimer=setTimeout(()=>{ this.lastMove=null; this._lastTimer=null; },5000);
+    },
+    isThrone(x,y){
+      return this.state && this.state.thrones.some(t=>t[0]===x&&t[1]===y);
+    },
+    legalFrom(x,y){
+      if(!this.state) return [];
+      return this.state.legal.filter(m=>m[0][0]===x&&m[0][1]===y).map(m=>m[1]);
+    },
+    cellClass(c){
+      const cls=['cell',c.g];
+      if(this.isThrone(c.x,c.y)) cls.push('throne');
+      if(this.selected && this.selected[0]===c.x && this.selected[1]===c.y) cls.push('sel');
+      if(this.targets.some(t=>t[0]===c.x&&t[1]===c.y)){ cls.push('legal'); if(!c.piece) cls.push('target'); }
+      if(this.lastMove && this.lastMove.some(p=>p[0]===c.x&&p[1]===c.y)) cls.push('last');
+      return cls;
+    },
+    pieceClass(c){
+      const cls=['piece', c.piece.owner===0?'p0':'p1'];
+      if(c.piece.monarch) cls.push('crown');
+      if(c.piece.owner===0 && this.toMove===0 && this.winner===null) cls.push('mine');
+      return cls;
+    },
+    onPieceClick(c){
+      if(this.winner!==null || this.toMove!==0 || this.busy) return;
+      if(c.piece.owner!==0){ return this.onCellClick(c); }
+      this.selected=[c.x,c.y];
+      this.targets=this.legalFrom(c.x,c.y);
+    },
+    async onCellClick(c){
+      if(this.winner!==null || this.busy) return;
+      if(!this.selected) return;
+      const ok=this.targets.some(t=>t[0]===c.x&&t[1]===c.y);
+      if(!ok){ this.selected=null; this.targets=[]; return; }
+      await this.doMove(this.selected, [c.x,c.y]);
+    },
+    async doMove(from,to){
+      this.busy=true;
+      const r=await this.api('/api/move',{id:this.id,from,to});
+      if(r.error){ this.busy=false; this.selected=null; this.targets=[]; return; }
+      this.state=r.state; this.showLastMove([from,to]);
+      this.logEvent('player_move',{from,to});
+      this.selected=null; this.targets=[];
+      this.busy=false;
+      if(this.state.winner!==null){
+        this.logEvent('game_over',{winner:this.state.winner});
+      } else if(this.state.to_move===1){
+        await this.aiTurn();
+      }
+    },
+    async aiTurn(){
+      this.aiThinking=true; this.busy=true;
+      const r=await this.api('/api/ai',{id:this.id});
+      if(r.error){ this.aiThinking=false; this.busy=false; return; }
+      this.state=r.state;
+      if(r.move){ this.showLastMove(r.move); this.logEvent('ai_move',{move:r.move,info:r.info}); }
+      if(r.info) this.lastInfo=r.info;
+      this.aiThinking=false; this.busy=false;
+      if(this.state.winner!==null){
+        this.logEvent('game_over',{winner:this.state.winner});
+      } else if(r.draw_offer){
+        this.aiDrawOffer=true;
+        this.logEvent('ai_draw_offer');
+      }
+    },
+    async offerDraw(){
+      this.drawBusy=true; this.drawResponse=null;
+      const r=await this.api('/api/draw',{id:this.id});
+      this.drawBusy=false;
+      if(r.error) return;
+      this.drawResponse=r.reason;
+      this.logEvent('draw_offer',{by:'human',accepted:r.accepted,reason:r.reason});
+      if(r.draw_agreed){
+        this.state.winner='draw';
+      }
+    },
+    acceptAiDraw(){
+      this.state.winner='draw';
+      this.aiDrawOffer=false;
+      this.logEvent('draw_agreed',{by:'human',proposed_by:'ai'});
+    },
+    async downloadLog(){
+      let serverLog=[];
+      try{
+        const r=await fetch(`/api/log?id=${this.id}`);
+        const d=await r.json();
+        if(d.log) serverLog=d.log;
+      }catch(e){}
+      const report = {
+        report_type: 'facet_bug_report',
+        downloaded: new Date().toISOString(),
+        description: this.bugDescription || '(no description provided)',
+        game: {
+          id: this.id,
+          board: this.boardId,
+          board_name: this.boards[this.boardId]?.name || this.boardId,
+          difficulty: this.difficulty,
+          winner: this.winner,
+          turn: this.state?.to_move,
+          move_count: this.eventLog.filter(e=>e.event==='player_move'||e.event==='ai_move').length,
+        },
+        board_state: this.state,
+        ui: {
+          selected: this.selected,
+          lastMove: this.lastMove,
+          aiThinking: this.aiThinking,
+          aiDrawOffer: this.aiDrawOffer,
+          errorMsg: this.errorMsg,
+        },
+        client_events: this.eventLog,
+        server_events: serverLog,
+        browser: navigator.userAgent,
+        screen: {width: window.innerWidth, height: window.innerHeight},
+      };
+      const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`facet-report-${this.id||'unknown'}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    },
+  },
+  watch:{
+    boardId(){ if(this.winner!==null || !this.id) this.newGame(); }
+  },
+  async mounted(){
+    const r = await this.api('/api/boards');
+    if(r.boards) this.boards=r.boards;
+    this.newGame();
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "FACET",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postStartCommand": "python3 server.py &",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "FACET Game",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
