@@ -101,13 +101,24 @@ Note: game state lives in memory — restarting the server loses active games.
 ## Project structure
 
 ```
-facet_engine.py   Game rules, board definitions, AI search
-server.py         HTTP API + static file server (stdlib only)
-static/
-  index.html      Vue 3 single-page UI
-Dockerfile        Deployment image
-fly.toml          Fly.io configuration
+facet_engine.py        Game rules, board definitions, AI (Python — server mode)
+server.py              HTTP API + static file server (stdlib only)
+docs/                  Shared frontend — served by Python AND GitHub Pages
+  index.html           Vue 3 single-page UI
+  facet_engine.js      Game engine + AI (JavaScript — browser mode)
+  adapter.js           ServerAdapter / LocalAdapter — auto-detects mode
+  vue.global.prod.js   Vue 3 framework (bundled, no CDN)
+.github/workflows/
+  pages.yml            Auto-deploy docs/ to GitHub Pages on push to main
+Dockerfile             Deployment image (Fly.io)
+fly.toml               Fly.io configuration
 ```
+
+The app runs in two modes:
+- **Server mode** — `python3 server.py` serves `docs/`, frontend uses `ServerAdapter` (fetch to Python API)
+- **Local mode** — open `docs/index.html` directly or via GitHub Pages, frontend uses `LocalAdapter` (JS engine in the browser, no server needed)
+
+Mode is auto-detected: the frontend tries to reach `/api/boards` — if the server responds, it uses server mode; otherwise it falls back to local mode. The UI shows "(offline mode)" when running locally.
 
 ## Bug reports
 

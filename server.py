@@ -25,7 +25,7 @@ from facet_engine import canonical_board, make_board, BOARDS, ai_move, ai_evalua
 
 GAMES = {}            # id -> {"board": Board, "difficulty": str, "log": [...]}
 LOCK = threading.Lock()
-STATIC = Path(__file__).parent / "static"
+STATIC = Path(__file__).parent / "docs"
 
 DIFF = {  # name -> (time_budget_seconds, max_depth)
     "easy":   (0.25, 2),
