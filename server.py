@@ -63,8 +63,21 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print(f"[{_ts()}] {self.client_address[0]} {fmt % args}")
 
+    def _cors(self):
+        origin = self.headers.get("Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self._cors()
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _send(self, code, obj=None, body=None, ctype="application/json"):
         self.send_response(code)
+        self._cors()
         self.send_header("Content-Type", ctype)
         if obj is not None:
             body = json.dumps(obj).encode()
@@ -86,6 +99,15 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path in ("/", "/index.html"):
             self._serve_static("index.html", "text/html; charset=utf-8")
             return
+        if parsed.path.startswith("/") and not parsed.path.startswith("/api/"):
+            name = parsed.path.lstrip("/")
+            ctypes = {".js": "application/javascript", ".css": "text/css",
+                      ".png": "image/png", ".svg": "image/svg+xml"}
+            ext = "." + name.rsplit(".", 1)[-1] if "." in name else ""
+            ctype = ctypes.get(ext, "application/octet-stream")
+            if (STATIC / name).exists():
+                return self._serve_static(name, ctype)
+
         if parsed.path == "/api/state":
             qs = parse_qs(parsed.query)
             gid = (qs.get("id") or [""])[0]
