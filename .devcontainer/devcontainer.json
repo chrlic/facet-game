@@ -1,12 +1,13 @@
 {
   "name": "FACET",
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
-  "postStartCommand": "python3 server.py &",
+  "postStartCommand": "nohup python3 server.py > /tmp/facet.log 2>&1 &",
   "forwardPorts": [8000],
   "portsAttributes": {
     "8000": {
       "label": "FACET Game",
-      "onAutoForward": "openBrowser"
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
     }
   }
 }
