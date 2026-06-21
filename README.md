@@ -63,13 +63,19 @@ Three difficulty levels: Easy (depth 2), Normal (depth 4), Hard (depth 6).
 
 The AI can also propose and evaluate draw offers based on its position evaluation.
 
-## Run in GitHub Codespaces
+## Play in the browser (no install)
 
-Click the button on the repo page:
+**Gitpod** — prepend `gitpod.io/#` to the repo URL:
+
+```
+gitpod.io/#https://github.com/YOUR_USER/facet
+```
+
+**GitHub Codespaces** — from the repo page:
 
 > **Code** → **Codespaces** → **Create codespace on main**
 
-The game server starts automatically and opens in your browser. No setup needed.
+Both start the server automatically and open the game in your browser.
 
 ## Running locally
 

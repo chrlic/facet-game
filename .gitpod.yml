@@ -1,0 +1,7 @@
+tasks:
+  - command: python3 server.py
+
+ports:
+  - port: 8000
+    onOpen: open-browser
+    visibility: public
