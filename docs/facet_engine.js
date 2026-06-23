@@ -17,6 +17,7 @@ standard8:{name:"Standard 8x8",desc:"Chess-sized board — two thrones, balanced
 diamond8:{name:"Diamond 8x8",desc:"Features form a diamond — thrones at the heart.",size:[8,8],rows:["FFFFFFFF","FFFNFFFF","FFBFFBFF","FNFTFNFF","FFNFTFNF","FFBFFBFF","FFFFNFFF","FFFFFFFF"]},
 arena9:{name:"Arena 9x9",desc:"Open centre ringed by features — all-out brawl.",size:[9,9],rows:["FFFFFFFFF","FFFFFFFFF","FFNBRBNFF","FFRFFFRFF","FBFTFTFBF","FFRFFFRFF","FFNBRBNFF","FFFFFFFFF","FFFFFFFFF"]},
 flux9:{name:"Flux 9x9",desc:"Features spiral around the thrones — fluid, shifting play.",size:[9,9],rows:["FFFFFFFFF","FFNFFFBFF","FFFFRFFFF","FBFFFTFFF","FFFFFFFFF","FFFTFFFBF","FFFFRFFFF","FFBFFFNFF","FFFFFFFFF"]},
+temple9:{name:"Temple 9x9",desc:"Power tiles guard the thrones — fight through to coronation.",size:[9,9],rows:["FFFFFFFFF","FFFFFFFFF","FFBRFRBFF","FFNFTFNFF","FFFFFFFFF","FFNFTFNFF","FFBRFRBFF","FFFFFFFFF","FFFFFFFFF"]},
 };
 
 function _makeBoard(rows,W,H,p0c,p1c){

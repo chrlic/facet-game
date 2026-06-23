@@ -4,3 +4,5 @@ __pycache__/
 .DS_Store
 simulate.py
 sim_*.py
+sim_launch.sh
+sim_run.sh

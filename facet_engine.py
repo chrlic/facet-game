@@ -193,11 +193,121 @@ BOARDS = {
             "FFFFFFFFF",
         ],
     },
+    "temple9": {
+        "name": "Temple 9x9",
+        "desc": "Power tiles guard the thrones — fight through to coronation.",
+        "size": [9, 9],
+        "rows": [
+            "FFFFFFFFF",
+            "FFFFFFFFF",
+            "FFBRFRBFF",
+            "FFNFTFNFF",
+            "FFFFFFFFF",
+            "FFNFTFNFF",
+            "FFBRFRBFF",
+            "FFFFFFFFF",
+            "FFFFFFFFF",
+        ],
+    },
+}
+
+# Tile-promotion variant boards — promoting tiles as contested mid-board prizes
+TILE_PROMO_BOARDS = {
+    "forge7": {
+        "name": "Forge 7x7",
+        "desc": "Promotions clustered in the centre — race to claim your power.",
+        "size": [7, 7],
+        "rows": [
+            "FFFFFFF",
+            "FFFFFFF",
+            "FFRNRFF",
+            "FBTFTBF",
+            "FFRNRFF",
+            "FFFFFFF",
+            "FFFFFFF",
+        ],
+    },
+    "gauntlet7": {
+        "name": "Gauntlet 7x7",
+        "desc": "Promotions line the corridor — fight through to power up.",
+        "size": [7, 7],
+        "rows": [
+            "FFFFFFF",
+            "FFRFRFF",
+            "FNFFFNF",
+            "FBTFTBF",
+            "FNFFFNF",
+            "FFRFRFF",
+            "FFFFFFF",
+        ],
+    },
+    "academy8": {
+        "name": "Academy 8x8",
+        "desc": "Promotions in a ring — choose your specialization wisely.",
+        "size": [8, 8],
+        "rows": [
+            "FFFFFFFF",
+            "FFFFFFFF",
+            "FFNFFNFF",
+            "FRFTFBRF",
+            "FRBFTFRF",
+            "FFNFFNFF",
+            "FFFFFFFF",
+            "FFFFFFFF",
+        ],
+    },
+    "bazaar8": {
+        "name": "Bazaar 8x8",
+        "desc": "Promotions scattered wide — each path offers different power.",
+        "size": [8, 8],
+        "rows": [
+            "FFFFFFFF",
+            "FFNFFBFF",
+            "FRFFFFRF",
+            "FFFFTFFF",
+            "FFFTFFFF",
+            "FRFFFFRF",
+            "FFBFFNFF",
+            "FFFFFFFF",
+        ],
+    },
+    "nexus9": {
+        "name": "Nexus 9x9",
+        "desc": "Three promotion clusters — secure the nexus points.",
+        "size": [9, 9],
+        "rows": [
+            "FFFFFFFFF",
+            "FFFFFFFFF",
+            "FFNFFFNFF",
+            "FFRFTFRFF",
+            "FFBFFFBFF",
+            "FFRFTFRFF",
+            "FFNFFFNFF",
+            "FFFFFFFFF",
+            "FFFFFFFFF",
+        ],
+    },
+    "temple9": {
+        "name": "Temple 9x9",
+        "desc": "Power tiles guard the thrones — promotion is the path to victory.",
+        "size": [9, 9],
+        "rows": [
+            "FFFFFFFFF",
+            "FFFFFFFFF",
+            "FFBRFRBFF",
+            "FFNFTFNFF",
+            "FFFFFFFFF",
+            "FFNFTFNFF",
+            "FFBRFRBFF",
+            "FFFFFFFFF",
+            "FFFFFFFFF",
+        ],
+    },
 }
 
 
 def make_board(board_id="classic"):
-    spec = BOARDS.get(board_id, BOARDS["classic"])
+    spec = BOARDS.get(board_id) or TILE_PROMO_BOARDS.get(board_id) or BOARDS["classic"]
     W, H = spec["size"]
     rows = [r.replace(" ", "")[:W] for r in spec["rows"]]
     p0 = spec.get("p0")
