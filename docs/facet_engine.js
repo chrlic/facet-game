@@ -6,6 +6,10 @@ const KNIGHT_DIRS=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
 const SLIDERS={R:ORTH,B:DIAG,T:KING};
 const INF=1e9;
 const _EXACT=0,_LOWER=1,_UPPER=2;
+const DECAY_MAP={R:'B',B:'N',N:'F',F:'F',T:'T'};
+const FOG_RADIUS=2,FOG_MONARCH_RADIUS=3;
+const DECAY_BOARDS=new Set(['classic','standard8','sprawl','arena9','temple9']);
+const FOG_BOARDS=new Set(['knights','standard8','diamond8','temple9']);
 
 const BOARDS={
 classic:{name:"Classic 7x7",desc:"The original — two thrones in the centre corridor.",size:[7,7],rows:["FFFFFFF","FFFFFFF","BFNFNFB","RFTFTFR","BFNFNFB","FFFFFFF","FFFFFFF"]},
@@ -34,7 +38,7 @@ function _makeBoard(rows,W,H,p0c,p1c){
   return new Board(W,H,terrain,pieces);
 }
 
-function makeBoard(id){
+function makeBoard(id,modes){
   const spec=BOARDS[id]||BOARDS.classic;
   const[W,H]=spec.size;
   const rows=spec.rows.map(r=>r.replace(/ /g,"").slice(0,W));
@@ -44,19 +48,28 @@ function makeBoard(id){
     for(let x=0;x<W;x++){p0.push([x,0]);p1.push([x,H-1]);}
     p0.push([2,1],[6,1]);p1.push([6,H-2],[2,H-2]);
   }
-  return _makeBoard(rows,W,H,p0,p1);
+  const board=_makeBoard(rows,W,H,p0,p1);
+  if(modes){board.modes=new Set(modes);if(board.modes.has('decay'))board.terrain={...board.terrain};}
+  return board;
 }
 
 class Board{
-  constructor(W,H,terrain,pieces,toMove=0,throneHeldSince=null){
+  constructor(W,H,terrain,pieces,toMove=0,throneHeldSince=null,modes=null){
     this.W=W;this.H=H;this.terrain=terrain;this.pieces=pieces;
     this.toMove=toMove;this.throneHeldSince=throneHeldSince;
+    this.modes=modes||new Set();
   }
-  clone(){return new Board(this.W,this.H,this.terrain,{...this.pieces},this.toMove,this.throneHeldSince);}
+  clone(){
+    const t=this.modes.has('decay')?{...this.terrain}:this.terrain;
+    const b=new Board(this.W,this.H,t,{...this.pieces},this.toMove,this.throneHeldSince,new Set(this.modes));
+    if(this._partial){b._partial=true;b._viewer=this._viewer;}return b;
+  }
   key(){
     const pk=Object.keys(this.pieces).sort().map(k=>{const p=this.pieces[k];return k+":"+p.owner+p.monarch;}).join("|");
     const th=this.throneHeldSince?this.throneHeldSince[0]+","+this.throneHeldSince[1]:"n";
-    return pk+"/"+this.toMove+"/"+th;
+    let base=pk+"/"+this.toMove+"/"+th;
+    if(this.modes.has('decay')) base+="/"+Object.entries(this.terrain).sort().map(([k,v])=>k+v).join("");
+    return base;
   }
   monarchAlive(owner){for(const k in this.pieces){const p=this.pieces[k];if(p.owner===owner&&p.monarch)return true;}return false;}
   monarchCell(owner){for(const k in this.pieces){const p=this.pieces[k];if(p.owner===owner&&p.monarch)return k;}return null;}
@@ -69,10 +82,10 @@ class Board{
   }
   pieceCount(owner){let n=0;for(const k in this.pieces)if(this.pieces[k].owner===owner)n++;return n;}
   winner(){
-    if(!this.monarchAlive(0))return 1;
-    if(!this.monarchAlive(1))return 0;
-    if(this.pieceCount(0)===1)return 1;
-    if(this.pieceCount(1)===1)return 0;
+    const pp=this._partial,vw=this._viewer;
+    if(!this.monarchAlive(0)){if(!(pp&&0!==vw))return 1;}
+    if(!this.monarchAlive(1)){if(!(pp&&1!==vw))return 0;}
+    if(!pp){if(this.pieceCount(0)===1)return 1;if(this.pieceCount(1)===1)return 0;}
     const th=this.throneHolder();
     if(th!==null&&this.throneHeldSince&&this.throneHeldSince[0]===th&&this.throneHeldSince[1]>=3)return th;
     if(!this.legalMoves(this.toMove).length)return"draw";
@@ -92,10 +105,35 @@ class Board{
     const mv=[];for(const ck in this.pieces)if(this.pieces[ck].owner===owner)for(const to of this.movesFor(ck))mv.push([ck,to]);return mv;
   }
   apply(mv){
-    const[fr,to]=mv;this.pieces[to]=this.pieces[fr];delete this.pieces[fr];this.toMove^=1;
+    const[fr,to]=mv;
+    if(this.modes.has('decay')){const g=this.terrain[fr]||'F';this.terrain[fr]=DECAY_MAP[g]||g;}
+    this.pieces[to]=this.pieces[fr];delete this.pieces[fr];this.toMove^=1;
     const th=this.throneHolder();
     if(th!==null){if(this.throneHeldSince&&this.throneHeldSince[0]===th)this.throneHeldSince=[th,this.throneHeldSince[1]+1];else this.throneHeldSince=[th,1];}
     else this.throneHeldSince=null;
+  }
+  visibleCells(owner){
+    const vis=new Set();
+    for(const ck in this.pieces){
+      const p=this.pieces[ck];if(p.owner!==owner)continue;
+      const[cx,cy]=ck.split(",").map(Number);
+      const r=p.monarch?FOG_MONARCH_RADIUS:FOG_RADIUS;
+      for(let dx=-r;dx<=r;dx++)for(let dy=-r;dy<=r;dy++){
+        if(Math.abs(dx)+Math.abs(dy)<=r){const k=(cx+dx)+","+(cy+dy);if(k in this.terrain)vis.add(k);}
+      }
+    }
+    for(const t of this.thrones())vis.add(t);
+    return vis;
+  }
+  fogView(owner){
+    if(!this.modes.has('fog'))return this;
+    const vis=this.visibleCells(owner);
+    const t=this.modes.has('decay')?{...this.terrain}:this.terrain;
+    const filtered={};
+    for(const k in this.pieces){const p=this.pieces[k];if(p.owner===owner||vis.has(k))filtered[k]=p;}
+    const m=new Set(this.modes);m.delete('fog');
+    const b=new Board(this.W,this.H,t,filtered,this.toMove,this.throneHeldSince,m);
+    b._partial=true;b._viewer=owner;return b;
   }
 }
 
@@ -103,10 +141,10 @@ class Board{
 function mobility(board,ck){return board.movesFor(ck).length;}
 
 function evaluate(board,owner){
-  if(!board.monarchAlive(owner))return-INF;
-  if(!board.monarchAlive(owner^1))return INF;
-  if(board.pieceCount(owner)===1)return-INF;
-  if(board.pieceCount(owner^1)===1)return INF;
+  const pp=board._partial,vw=board._viewer;
+  if(!board.monarchAlive(owner)){if(!(pp&&owner!==vw))return-INF;}
+  if(!board.monarchAlive(owner^1)){if(!(pp&&(owner^1)!==vw))return INF;}
+  if(!pp){if(board.pieceCount(owner)===1)return-INF;if(board.pieceCount(owner^1)===1)return INF;}
   const th=board.throneHolder();
   if(th===owner)return INF/2;
   if(th===(owner^1))return-INF/2;
@@ -125,8 +163,8 @@ function evaluate(board,owner){
     }
     score+=p.owner===owner?val:-val;
   }
-  score+=(myC-oppC)*5;
-  if(oppC===2)score+=15;if(myC===2)score-=15;
+  if(!pp){score+=(myC-oppC)*5;if(oppC===2)score+=15;}
+  if(myC===2)score-=15;
   return score;
 }
 
@@ -180,8 +218,9 @@ class Searcher{
   _ab(board,owner,depth,a,b){
     if(Date.now()>this.deadline)throw new Error("timeout");
     this.nodes++;
-    if(!board.monarchAlive(0))return owner===0?-INF:INF;
-    if(!board.monarchAlive(1))return owner===1?-INF:INF;
+    const pp=board._partial,vw=board._viewer;
+    if(!board.monarchAlive(0)){if(!(pp&&0!==vw))return owner===0?-INF:INF;}
+    if(!board.monarchAlive(1)){if(!(pp&&1!==vw))return owner===1?-INF:INF;}
     const th=board.throneHolder();
     if(th!==null&&th===board.toMove)return th===owner?INF/2:-INF/2;
     if(depth<=0)return this._quiesce(board,owner,a,b,0);
@@ -224,8 +263,9 @@ class Searcher{
     return false;
   }
   _quiesce(board,owner,a,b,qd){
-    if(!board.monarchAlive(owner^1))return INF;
-    if(!board.monarchAlive(owner))return-INF;
+    const pp=board._partial,vw=board._viewer;
+    if(!board.monarchAlive(owner^1)){if(!(pp&&(owner^1)!==vw))return INF;}
+    if(!board.monarchAlive(owner)){if(!(pp&&owner!==vw))return-INF;}
     let stand=evaluate(board,board.toMove);
     if(this.noise>0)stand+=(Math.random()*2-1)*this.noise;
     if(stand>=b)return stand;if(stand>a)a=stand;if(qd>=4)return stand;
@@ -242,34 +282,43 @@ class Searcher{
 }
 
 function aiMove(board,timeBudget=1,maxDepth=5){
-  const total=Object.keys(board.pieces).length;
+  const view=board.fogView(board.toMove);
+  const total=Object.keys(view.pieces).length;
   const noise=total>=12?1.5:total>=8?0.5:0;
   const s=new Searcher(timeBudget,maxDepth,noise);
-  const[mv,score,depth]=s.search(board,board.toMove);
+  const[mv,score,depth]=s.search(view,view.toMove);
   return[mv,{score:Math.round(score*10)/10,depth,nodes:s.nodes}];
 }
 
 function aiEvaluateDraw(board,side,timeBudget=0.5,maxDepth=4){
+  const view=board.fogView(side);
   const s=new Searcher(timeBudget,maxDepth,0);
-  const[,score]=s.search(board,side);
+  const[,score]=s.search(view,side);
   if(score<=-5)return[true,"Position looks difficult — draw accepted."];
   if(Math.abs(score)<2)return[true,"Position is roughly equal — draw accepted."];
   return[false,`AI declines the draw (eval ${score>0?"+":""}${score.toFixed(1)} in its favour).`];
 }
 
 function aiWantsDraw(board,side,timeBudget=0.5,maxDepth=4){
+  const view=board.fogView(side);
   const s=new Searcher(timeBudget,maxDepth,0);
-  const[,score]=s.search(board,side);
+  const[,score]=s.search(view,side);
   return score<=-8;
 }
 
-function serialize(board){
+function serialize(board,viewer=0){
   const terrain={},pieces={};
+  const fog=board.modes.has('fog');
+  const vis=fog?board.visibleCells(viewer):null;
   for(const k in board.terrain)terrain[k]=board.terrain[k];
-  for(const k in board.pieces)pieces[k]=board.pieces[k];
+  for(const k in board.pieces){
+    const p=board.pieces[k];
+    if(fog&&vis&&!vis.has(k)&&p.owner!==viewer)continue;
+    pieces[k]=p;
+  }
   const w=board.winner();
   return{W:board.W,H:board.H,terrain,pieces,to_move:board.toMove,
     thrones:board.thrones().map(k=>k.split(",").map(Number)),
-    winner:w,
+    winner:w,modes:[...board.modes],
     legal:w!==null?[]:board.legalMoves(board.toMove).map(([f,t])=>[f.split(",").map(Number),t.split(",").map(Number)])};
 }

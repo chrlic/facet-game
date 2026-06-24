@@ -21,7 +21,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 
-from facet_engine import canonical_board, make_board, BOARDS, ai_move, ai_evaluate_draw, ai_wants_draw
+from facet_engine import (canonical_board, make_board, BOARDS, DECAY_BOARDS, FOG_BOARDS,
+                          ai_move, ai_evaluate_draw, ai_wants_draw)
 
 GAMES = {}            # id -> {"board": Board, "difficulty": str, "log": [...]}
 LOCK = threading.Lock()
@@ -43,16 +44,23 @@ def _log_event(game, kind, **kw):
     game["log"].append(entry)
 
 
-def serialize(board, draw_agreed=False):
+def serialize(board, draw_agreed=False, viewer=0):
     w = "draw" if draw_agreed else board.winner()
+    fog = 'fog' in board.modes
+    vis = board.visible_cells(viewer) if fog else None
+    pieces = {}
+    for (x, y), (o, m) in board.pieces.items():
+        if fog and vis is not None and (x, y) not in vis and o != viewer:
+            continue
+        pieces[f"{x},{y}"] = {"owner": o, "monarch": m}
     return {
         "W": board.W, "H": board.H,
         "terrain": {f"{x},{y}": g for (x, y), g in board.terrain.items()},
-        "pieces": {f"{x},{y}": {"owner": o, "monarch": m}
-                   for (x, y), (o, m) in board.pieces.items()},
+        "pieces": pieces,
         "to_move": board.to_move,
         "thrones": [[x, y] for (x, y) in board.thrones()],
         "winner": w,
+        "modes": list(board.modes),
         "legal": ([] if w is not None else
                   [[[fx, fy], [tx, ty]]
                    for ((fx, fy), (tx, ty)) in board.legal_moves(board.to_move)]),
@@ -117,7 +125,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(404, {"error": "no such game"})
                 return self._send(200, {"id": gid, "state": serialize(g["board"], g.get("draw_agreed", False))})
         if parsed.path == "/api/boards":
-            bl = {k: {"name": v["name"], "desc": v["desc"], "size": v["size"]}
+            bl = {k: {"name": v["name"], "desc": v["desc"], "size": v["size"],
+                       "supports_decay": k in DECAY_BOARDS,
+                       "supports_fog": k in FOG_BOARDS}
                   for k, v in BOARDS.items()}
             return self._send(200, {"boards": bl})
         if parsed.path == "/api/log":
@@ -144,12 +154,21 @@ class Handler(BaseHTTPRequestHandler):
             board_id = data.get("board", "classic")
             if board_id not in BOARDS:
                 board_id = "classic"
+            req_modes = set(data.get("modes", []))
+            modes = set()
+            if 'decay' in req_modes and board_id in DECAY_BOARDS:
+                modes.add('decay')
+            if 'fog' in req_modes and board_id in FOG_BOARDS:
+                modes.add('fog')
             gid = uuid.uuid4().hex[:12]
             with LOCK:
-                g = {"board": make_board(board_id), "difficulty": diff, "log": []}
+                g = {"board": make_board(board_id, modes=modes),
+                     "difficulty": diff, "log": []}
                 GAMES[gid] = g
-                _log_event(g, "new_game", difficulty=diff, board=board_id, game_id=gid)
+                _log_event(g, "new_game", difficulty=diff, board=board_id,
+                           modes=list(modes), game_id=gid)
                 return self._send(200, {"id": gid, "difficulty": diff,
+                                        "modes": list(modes),
                                         "state": serialize(g["board"])})
 
         if parsed.path == "/api/move":

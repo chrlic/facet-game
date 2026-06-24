@@ -306,7 +306,7 @@ TILE_PROMO_BOARDS = {
 }
 
 
-def make_board(board_id="classic"):
+def make_board(board_id="classic", modes=None):
     spec = BOARDS.get(board_id) or TILE_PROMO_BOARDS.get(board_id) or BOARDS["classic"]
     W, H = spec["size"]
     rows = [r.replace(" ", "")[:W] for r in spec["rows"]]
@@ -319,27 +319,50 @@ def make_board(board_id="classic"):
     if p0 is None and W == 9 and H == 9:
         p0 = [(x, 0) for x in range(W)] + [(2, 1), (6, 1)]
         p1 = [(x, H-1) for x in range(W)] + [(6, H-2), (2, H-2)]
-    return _make_board(rows, W, H, p0_cells=p0, p1_cells=p1)
+    board = _make_board(rows, W, H, p0_cells=p0, p1_cells=p1)
+    if modes:
+        board.modes = set(modes)
+        if 'decay' in board.modes:
+            board.terrain = dict(board.terrain)
+    return board
 
 
 def canonical_board():
     return make_board("classic")
 
 
+DECAY_MAP = {'R': 'B', 'B': 'N', 'N': 'F', 'F': 'F', 'T': 'T'}
+FOG_RADIUS = 2
+FOG_MONARCH_RADIUS = 3
+
+DECAY_BOARDS = {'classic', 'standard8', 'sprawl', 'arena9', 'temple9'}
+FOG_BOARDS = {'knights', 'standard8', 'diamond8', 'temple9'}
+
+
 class Board:
-    def __init__(self, W, H, terrain, pieces, to_move=0, throne_held_since=None):
+    def __init__(self, W, H, terrain, pieces, to_move=0, throne_held_since=None,
+                 modes=None):
         self.W, self.H = W, H
         self.terrain = terrain
         self.pieces = pieces
         self.to_move = to_move
-        self.throne_held_since = throne_held_since  # (owner, turn_count) or None
+        self.throne_held_since = throne_held_since
+        self.modes = modes or set()
 
     def clone(self):
-        return Board(self.W, self.H, self.terrain, dict(self.pieces),
-                     self.to_move, self.throne_held_since)
+        t = dict(self.terrain) if 'decay' in self.modes else self.terrain
+        b = Board(self.W, self.H, t, dict(self.pieces),
+                  self.to_move, self.throne_held_since, set(self.modes))
+        if getattr(self, '_partial', False):
+            b._partial = True
+            b._viewer = self._viewer
+        return b
 
     def key(self):
-        return (frozenset(self.pieces.items()), self.to_move, self.throne_held_since)
+        base = (frozenset(self.pieces.items()), self.to_move, self.throne_held_since)
+        if 'decay' in self.modes:
+            return base + (frozenset(self.terrain.items()),)
+        return base
 
     # ---- queries ----
     def monarch_alive(self, owner):
@@ -371,14 +394,23 @@ class Board:
 
     def winner(self):
         """Returns 0, 1, 'draw', or None (game ongoing)."""
+        partial = getattr(self, '_partial', False)
+        viewer = getattr(self, '_viewer', None)
         if not self.monarch_alive(0):
-            return 1
+            if partial and viewer == 1:
+                pass  # might just be hidden
+            else:
+                return 1
         if not self.monarch_alive(1):
-            return 0
-        if self.piece_count(0) == 1:
-            return 1
-        if self.piece_count(1) == 1:
-            return 0
+            if partial and viewer == 0:
+                pass
+            else:
+                return 0
+        if not partial:
+            if self.piece_count(0) == 1:
+                return 1
+            if self.piece_count(1) == 1:
+                return 0
         # coronation: hold all thrones for a full round (opponent had a chance to contest)
         th = self.throne_holder()
         if th is not None:
@@ -433,6 +465,9 @@ class Board:
 
     def apply(self, mv):
         fr, to = mv
+        if 'decay' in self.modes:
+            g = self.terrain.get(fr, 'F')
+            self.terrain[fr] = DECAY_MAP.get(g, g)
         self.pieces[to] = self.pieces.pop(fr)
         self.to_move ^= 1
         th = self.throne_holder()
@@ -445,6 +480,40 @@ class Board:
         else:
             self.throne_held_since = None
 
+    def visible_cells(self, owner):
+        """Fog of war: returns set of (x,y) visible to `owner`."""
+        vis = set()
+        for c, (o, is_mon) in self.pieces.items():
+            if o != owner:
+                continue
+            r = FOG_MONARCH_RADIUS if is_mon else FOG_RADIUS
+            cx, cy = c
+            for dx in range(-r, r + 1):
+                for dy in range(-r, r + 1):
+                    if abs(dx) + abs(dy) <= r:
+                        pos = (cx + dx, cy + dy)
+                        if pos in self.terrain:
+                            vis.add(pos)
+        for c in self.thrones():
+            vis.add(c)
+        return vis
+
+    def fog_view(self, owner):
+        """Return a board copy with enemy pieces outside vision removed.
+        Sets partial_view flag so winner/eval don't misinterpret missing pieces."""
+        if 'fog' not in self.modes:
+            return self
+        vis = self.visible_cells(owner)
+        t = dict(self.terrain) if 'decay' in self.modes else self.terrain
+        filtered = {c: p for c, p in self.pieces.items()
+                    if p[0] == owner or c in vis}
+        m = set(self.modes) - {'fog'}
+        b = Board(self.W, self.H, t, filtered,
+                  self.to_move, self.throne_held_since, m)
+        b._partial = True
+        b._viewer = owner
+        return b
+
 
 # ---------------- AI ----------------
 def mobility(board, cell):
@@ -453,15 +522,23 @@ def mobility(board, cell):
 
 def evaluate(board, owner):
     """Positive = good for `owner`."""
+    partial = getattr(board, '_partial', False)
+    viewer = getattr(board, '_viewer', None)
     if not board.monarch_alive(owner):
-        return -INF
+        if partial and owner != viewer:
+            pass  # hidden, not captured
+        else:
+            return -INF
     if not board.monarch_alive(owner ^ 1):
-        return INF
-    # bare monarch = loss
-    if board.piece_count(owner) == 1:
-        return -INF
-    if board.piece_count(owner ^ 1) == 1:
-        return INF
+        if partial and (owner ^ 1) != viewer:
+            pass
+        else:
+            return INF
+    if not partial:
+        if board.piece_count(owner) == 1:
+            return -INF
+        if board.piece_count(owner ^ 1) == 1:
+            return INF
     th = board.throne_holder()
     if th == owner:
         return INF // 2
@@ -485,10 +562,10 @@ def evaluate(board, owner):
                 if dt <= 2:
                     val += (3 - dt) * 0.6
         score += val if o == owner else -val
-    # material advantage matters more when opponent is low
-    score += (my_count - opp_count) * 5.0
-    if opp_count == 2:
-        score += 15.0
+    if not partial:
+        score += (my_count - opp_count) * 5.0
+        if opp_count == 2:
+            score += 15.0
     if my_count == 2:
         score -= 15.0
     return score
@@ -567,10 +644,14 @@ class Searcher:
             raise TimeoutError
         self.nodes += 1
 
+        partial = getattr(board, '_partial', False)
+        viewer = getattr(board, '_viewer', None)
         if not board.monarch_alive(0):
-            return -INF if owner == 0 else INF
+            if not (partial and 0 != viewer):
+                return -INF if owner == 0 else INF
         if not board.monarch_alive(1):
-            return -INF if owner == 1 else INF
+            if not (partial and 1 != viewer):
+                return -INF if owner == 1 else INF
         th = board.throne_holder()
         if th is not None and th == board.to_move:
             return (INF // 2) if th == owner else -(INF // 2)
@@ -643,10 +724,14 @@ class Searcher:
         return False
 
     def _quiesce(self, board, owner, a, b, qdepth):
+        partial = getattr(board, '_partial', False)
+        viewer = getattr(board, '_viewer', None)
         if not board.monarch_alive(owner ^ 1):
-            return INF
+            if not (partial and (owner ^ 1) != viewer):
+                return INF
         if not board.monarch_alive(owner):
-            return -INF
+            if not (partial and owner != viewer):
+                return -INF
         stand = evaluate(board, board.to_move)
         if self.noise > 0:
             stand += random.uniform(-self.noise, self.noise)
@@ -674,18 +759,18 @@ class Searcher:
 
 
 def ai_move(board, time_budget=1.0, max_depth=5):
-    total_pieces = len(board.pieces)
+    view = board.fog_view(board.to_move)
+    total_pieces = len(view.pieces)
     noise = 1.5 if total_pieces >= 12 else 0.5 if total_pieces >= 8 else 0.0
     s = Searcher(time_budget=time_budget, max_depth=max_depth, noise=noise)
-    mv, score, depth = s.search(board, board.to_move)
+    mv, score, depth = s.search(view, view.to_move)
     return mv, {"score": round(score, 1), "depth": depth, "nodes": s.nodes}
 
 
 def ai_evaluate_draw(board, side, time_budget=0.5, max_depth=4):
-    """AI decides whether to accept a draw offer.
-    Returns (accept: bool, reason: str)."""
+    view = board.fog_view(side)
     s = Searcher(time_budget=time_budget, max_depth=max_depth, noise=0.0)
-    _, score, _ = s.search(board, side)
+    _, score, _ = s.search(view, side)
     if score <= -5.0:
         return True, "Position looks difficult — draw accepted."
     if abs(score) < 2.0:
@@ -694,8 +779,7 @@ def ai_evaluate_draw(board, side, time_budget=0.5, max_depth=4):
 
 
 def ai_wants_draw(board, side, time_budget=0.5, max_depth=4):
-    """AI decides whether to propose a draw.
-    Returns True if position is bad enough to want out."""
+    view = board.fog_view(side)
     s = Searcher(time_budget=time_budget, max_depth=max_depth, noise=0.0)
-    _, score, _ = s.search(board, side)
+    _, score, _ = s.search(view, side)
     return score <= -8.0

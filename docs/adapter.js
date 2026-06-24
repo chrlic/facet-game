@@ -9,7 +9,7 @@ class ServerAdapter{
     const r=await fetch(path,opt);return r.json();
   }
   async getBoards(){return this._fetch("/api/boards");}
-  async newGame(boardId,difficulty){return this._fetch("/api/new",{board:boardId,difficulty});}
+  async newGame(boardId,difficulty,modes){return this._fetch("/api/new",{board:boardId,difficulty,modes:modes||[]});}
   async move(id,from,to){return this._fetch("/api/move",{id,from,to});}
   async aiMove(id){return this._fetch("/api/ai",{id});}
   async offerDraw(id){return this._fetch("/api/draw",{id});}
@@ -23,14 +23,18 @@ class LocalAdapter{
   }
   async getBoards(){
     const boards={};
-    for(const k in BOARDS)boards[k]={name:BOARDS[k].name,desc:BOARDS[k].desc,size:BOARDS[k].size};
+    for(const k in BOARDS)boards[k]={name:BOARDS[k].name,desc:BOARDS[k].desc,size:BOARDS[k].size,
+      supports_decay:DECAY_BOARDS.has(k),supports_fog:FOG_BOARDS.has(k)};
     return{boards};
   }
-  async newGame(boardId,difficulty){
+  async newGame(boardId,difficulty,modes){
     const id="local-"+(this._nextId++);
-    const board=makeBoard(boardId);
-    this.games[id]={board,difficulty:difficulty||"normal",log:[{t:new Date().toISOString(),event:"new_game",board:boardId,difficulty}]};
-    return{id,difficulty,state:serialize(board)};
+    const mset=new Set(modes||[]);
+    if(mset.has('decay')&&!DECAY_BOARDS.has(boardId))mset.delete('decay');
+    if(mset.has('fog')&&!FOG_BOARDS.has(boardId))mset.delete('fog');
+    const board=makeBoard(boardId,[...mset]);
+    this.games[id]={board,difficulty:difficulty||"normal",log:[{t:new Date().toISOString(),event:"new_game",board:boardId,difficulty,modes:[...mset]}]};
+    return{id,difficulty,modes:[...mset],state:serialize(board)};
   }
   async move(id,from,to){
     const g=this.games[id];if(!g)return{error:"no such game"};

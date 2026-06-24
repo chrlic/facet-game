@@ -102,6 +102,8 @@
   .rules .tile-ex{display:inline-flex;align-items:center;gap:3px;
         background:#ffffff12;border-radius:4px;padding:1px 6px;font-size:12px}
   .rules .tile-ex .sw{width:14px;height:14px;border-radius:3px}
+  .cell.fogged{opacity:0.25;pointer-events:none}
+  .cell.fogged .feat,.cell.fogged .featlabel{opacity:0.4}
 
   @keyframes fadeHighlight{
     0%,60%{box-shadow:inset 0 0 0 3px var(--last)}
@@ -219,10 +221,19 @@
       </div>
 
       <div class="card">
+        <div class="row" style="margin-bottom:6px">
+          <label class="muted">Mode</label>
+          <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" v-model="modeDecay"> Terrain decay
+          </label>
+          <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" v-model="modeFog"> Fog of war
+          </label>
+        </div>
         <div class="row">
           <label class="muted">Board</label>
           <select v-model="boardId">
-            <option v-for="(b,id) in boards" :key="id" :value="id">{{ b.name }}</option>
+            <option v-for="(b,id) in filteredBoards" :key="id" :value="id">{{ b.name }}</option>
           </select>
         </div>
         <div class="muted" style="margin:4px 0 8px" v-if="boards[boardId]">{{ boards[boardId].desc }}</div>
@@ -321,7 +332,7 @@ createApp({
   data(){return{
     adapter:null, adapterMode:'detecting...',
     id:null, state:null, difficulty:"normal", boardId:"classic",
-    boards:{},
+    boards:{}, modeDecay:false, modeFog:false,
     selected:null,           // [x,y] of selected piece
     targets:[],              // list of [x,y] legal destinations for selected
     lastMove:null,           // [[x,y],[x,y]]
@@ -333,6 +344,41 @@ createApp({
     bugDescription:'',
   }},
   computed:{
+    filteredBoards(){
+      const out={};
+      for(const id in this.boards){
+        const b=this.boards[id];
+        if(this.modeDecay && !b.supports_decay) continue;
+        if(this.modeFog && !b.supports_fog) continue;
+        out[id]=b;
+      }
+      return out;
+    },
+    activeModes(){
+      const m=[];
+      if(this.modeDecay && this.decayAvailable) m.push('decay');
+      if(this.modeFog) m.push('fog');
+      return m;
+    },
+    fogActive(){ return this.state && this.state.modes && this.state.modes.includes('fog'); },
+    visibleSet(){
+      if(!this.fogActive || !this.state) return null;
+      // In fog mode, any cell that has one of our pieces nearby is visible
+      // We compute this client-side from the pieces WE can see (which are already fog-filtered)
+      const vis=new Set();
+      for(const k in this.state.pieces){
+        const p=this.state.pieces[k];
+        if(p.owner!==0)continue;
+        const[cx,cy]=k.split(',').map(Number);
+        const r=p.monarch?3:2;
+        for(let dx=-r;dx<=r;dx++)for(let dy=-r;dy<=r;dy++){
+          if(Math.abs(dx)+Math.abs(dy)<=r) vis.add((cx+dx)+','+(cy+dy));
+        }
+      }
+      // thrones always visible
+      if(this.state.thrones) for(const[x,y]of this.state.thrones) vis.add(x+','+y);
+      return vis;
+    },
     W(){ return this.state ? this.state.W : 7; },
     H(){ return this.state ? this.state.H : 7; },
     winner(){ return this.state ? this.state.winner : null; },
@@ -396,7 +442,7 @@ createApp({
       this.lastInfo=null; this.aiThinking=false; this.errorMsg=null;
       this.eventLog=[]; this.aiDrawOffer=false; this.drawResponse=null;
       this.bugDescription='';
-      const r = await this._call(()=>this.adapter.newGame(this.boardId,this.difficulty));
+      const r = await this._call(()=>this.adapter.newGame(this.boardId,this.difficulty,this.activeModes));
       if(r.error) { this.busy=false; return; }
       this.id=r.id; this.state=r.state; this.busy=false;
       this.logEvent('new_game',{id:r.id, difficulty:this.difficulty, board:this.boardId});
@@ -429,6 +475,7 @@ createApp({
     cellClass(c){
       const cls=['cell',c.g];
       if(this.isThrone(c.x,c.y)) cls.push('throne');
+      if(this.fogActive && this.visibleSet && !this.visibleSet.has(c.x+','+c.y)) cls.push('fogged');
       if(this.selected && this.selected[0]===c.x && this.selected[1]===c.y) cls.push('sel');
       if(this.targets.some(t=>t[0]===c.x&&t[1]===c.y)){ cls.push('legal'); if(!c.piece) cls.push('target'); }
       if(this.lastMove && this.lastMove.some(p=>p[0]===c.x&&p[1]===c.y)) cls.push('last');
@@ -538,7 +585,19 @@ createApp({
     },
   },
   watch:{
-    boardId(){ if(this.winner!==null || !this.id) this.newGame(); }
+    boardId(){ if(this.winner!==null || !this.id) this.newGame(); },
+    modeDecay(){
+      if(this.modeDecay && !(this.boardId in this.filteredBoards)){
+        this.boardId = Object.keys(this.filteredBoards)[0] || 'classic';
+      }
+      if(this.winner!==null || !this.id) this.newGame();
+    },
+    modeFog(){
+      if(this.modeFog && !(this.boardId in this.filteredBoards)){
+        this.boardId = Object.keys(this.filteredBoards)[0] || 'classic';
+      }
+      if(this.winner!==null || !this.id) this.newGame();
+    },
   },
   async mounted(){
     this.adapter = await createAdapter();
