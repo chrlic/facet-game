@@ -16,7 +16,7 @@ jobs:
       - name: Stamp service worker version
         run: |
           VERSION="v-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
-          sed -i "s/const CACHE = \"facet-v1\"/const CACHE = \"facet-${VERSION}\"/" docs/sw.js
+          sed -i "s/const CACHE = \"facet-v[0-9]*\"/const CACHE = \"facet-${VERSION}\"/" docs/sw.js
           echo "Cache version: facet-${VERSION}"
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3

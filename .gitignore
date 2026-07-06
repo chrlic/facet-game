@@ -6,3 +6,7 @@ simulate.py
 sim_*.py
 sim_launch.sh
 sim_run.sh
+
+facet.db
+facet.db-wal
+facet.db-shm

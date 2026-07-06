@@ -31,7 +31,7 @@ In chess, a rook is always a rook. In FACET, every stone is the same — but it 
 
 ## Boards
 
-9 simulation-tested layouts across three sizes, each with a distinct character:
+10 simulation-tested layouts across three sizes, each with a distinct character:
 
 **7x7** (7 pieces per side)
 - **Classic** — the original centre-corridor layout
@@ -47,8 +47,44 @@ In chess, a rook is always a rook. In FACET, every stone is the same — but it 
 - **Citadel** — long strategic games, thrones guarded by feature rings
 - **Arena** — open centre ringed by features, all-out brawl
 - **Flux** — spiral features, fluid positional play
+- **Temple** — power tiles guard the thrones
 
-Every board is 180° rotationally symmetric with exactly 2 Thrones. All were validated with 100-game AI-vs-AI simulations for balance (first-mover win ratio between 0.42–0.58).
+Every board is 180° rotationally symmetric with exactly 2 Thrones and screened
+with AI-vs-AI simulations for first-mover balance.
+
+## Optional modes
+
+Selectable before board choice; the board list filters to compatible layouts.
+
+**Terrain decay** — when a stone leaves a special tile, the tile degrades one
+tier (Tower → Spire → Gate → Field; Thrones never decay). Movement power is a
+consumable resource. Boards: Classic, Standard, Sprawl, Arena, Temple.
+
+**Fog of war** — each player sees only Manhattan radius 2 around their stones
+(radius 3 around the Monarch); Thrones are always visible. Enemy stones you
+have spotted linger as faded *ghosts* at their last-seen square. If a slider's
+path crosses a hidden enemy, the slide **bumps**: it stops there and captures
+it. The AI plays under the same fog and keeps the same kind of sighting
+memory a human has. Boards: Knight's Arena, Diamond, Temple, Lantern.
+
+**Momentum** — a stone that leaves a special tile keeps that tile's rank for
+one more move, on top of what its new tile grants. The retained rank shows as
+a badge on the stone (public information for both sides) and expires after the
+next move. Leaving a Throne keeps the queen-slide for a move, so throne raids
+have an exit. Validated over 400+ games per board: draws drop to under 10% and
+elimination wins roughly double. Boards: Classic, Knight's Arena, Standard,
+Diamond, Citadel. Not combinable with decay or fog.
+
+Temple supports decay and fog at once. Lantern 8x8 is fog-only — its far-flank
+thrones are designed for hidden-information play and it is not offered for
+plain games. The board list always shows only layouts validated for the
+selected mode.
+
+## Side choice
+
+White moves first, and the first move is a measurable advantage. Before each
+game you can play White, Black, or Random — your stones always start at the
+bottom of the screen.
 
 ## AI
 
@@ -63,6 +99,10 @@ Three difficulty levels: Easy (depth 2), Normal (depth 4), Hard (depth 6).
 
 The AI can also propose and evaluate draw offers based on its position evaluation.
 
+In fog of war the AI searches only its own fog view — it never peeks at the
+full board. It remembers recent enemy sightings (like a human does) and plays
+more cautiously while enemy pieces are unaccounted for.
+
 ## Play in the browser (no install)
 
 **Gitpod** — prepend `gitpod.io/#` to the repo URL:
@@ -76,6 +116,45 @@ gitpod.io/#https://github.com/YOUR_USER/facet
 > **Code** → **Codespaces** → **Create codespace on main**
 
 Both start the server automatically and open the game in your browser.
+
+## Game server (accounts, lobby, PvP)
+
+`server.py` is a full game server — still stdlib-only:
+
+- **Accounts** — register with name + password (scrypt-hashed), or play
+  instantly as an auto-created **guest** and claim the account later. A
+  one-time recovery code (shown at registration) replaces email resets.
+- **Lobby** — offer your current board + modes to other players, accept open
+  offers, or challenge someone directly. Turn delivery uses long-polling.
+- **PvP games** are correspondence-style: no clocks, but an inactive player
+  forfeits after the move allowance (default 3 days, `FACET_MOVE_SECONDS`).
+  Resign and draw-by-agreement are supported; in fog games each player is
+  served only their own view — hidden pieces never leave the server.
+- **Persistence** — everything lives in a single SQLite file (`facet.db`,
+  `FACET_DB` to relocate). Games are stored as move logs and replayed through
+  the deterministic engine on demand, so a server restart loses nothing.
+  All SQL sits in `storage.py`; swapping in a standard DB engine later means
+  reimplementing that one module.
+
+- **Ratings & ranks** — rated PvP games move a single Elo rating (K=40 for
+  the first 15 rated games, then K=20; one rating across all boards and
+  modes). Ranks are computed from rating bands: Field → Gate → Spire →
+  Tower → Throne → Monarch, shown after 10 placement games. Rated rematches
+  between the same players alternate colors (the first-mover advantage is
+  measured, so the ladder averages it out). Guests play casual only; AI
+  games never affect the rating. Leaderboard and public profiles included.
+  Names are changeable self-service (uniqueness enforced).
+
+- **Administration** — `/admin.html` (admin accounts only) shows server
+  statistics, all players with search and password reset, and active games
+  with force-abort. Grant admin with `python3 manage.py make-admin <name>`
+  (or `FACET_ADMIN=<name>` at startup). `manage.py` also does
+  `list-players`, `reset-password`, and `stats` from the shell — safe to run
+  while the server is up.
+
+The old anonymous `/api/*` endpoints remain for cached PWA clients; the SPA
+uses the authenticated `/api/v1/*` API. GitHub Pages offline mode is
+unaffected (AI-only, in-browser engine, no accounts).
 
 ## Running locally
 

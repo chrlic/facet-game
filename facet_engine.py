@@ -209,105 +209,28 @@ BOARDS = {
             "FFFFFFFFF",
         ],
     },
-}
-
-# Tile-promotion variant boards — promoting tiles as contested mid-board prizes
-TILE_PROMO_BOARDS = {
-    "forge7": {
-        "name": "Forge 7x7",
-        "desc": "Promotions clustered in the centre — race to claim your power.",
-        "size": [7, 7],
-        "rows": [
-            "FFFFFFF",
-            "FFFFFFF",
-            "FFRNRFF",
-            "FBTFTBF",
-            "FFRNRFF",
-            "FFFFFFF",
-            "FFFFFFF",
-        ],
-    },
-    "gauntlet7": {
-        "name": "Gauntlet 7x7",
-        "desc": "Promotions line the corridor — fight through to power up.",
-        "size": [7, 7],
-        "rows": [
-            "FFFFFFF",
-            "FFRFRFF",
-            "FNFFFNF",
-            "FBTFTBF",
-            "FNFFFNF",
-            "FFRFRFF",
-            "FFFFFFF",
-        ],
-    },
-    "academy8": {
-        "name": "Academy 8x8",
-        "desc": "Promotions in a ring — choose your specialization wisely.",
+    "lantern8": {
+        "name": "Lantern 8x8",
+        "desc": "Thrones on far flanks — built for the fog: no single sortie takes both.",
         "size": [8, 8],
         "rows": [
             "FFFFFFFF",
+            "FNFFRFNF",
+            "FFBFFBFF",
+            "FFFNFFTF",
+            "FTFFNFFF",
+            "FFBFFBFF",
+            "FNFRFFNF",
             "FFFFFFFF",
-            "FFNFFNFF",
-            "FRFTFBRF",
-            "FRBFTFRF",
-            "FFNFFNFF",
-            "FFFFFFFF",
-            "FFFFFFFF",
-        ],
-    },
-    "bazaar8": {
-        "name": "Bazaar 8x8",
-        "desc": "Promotions scattered wide — each path offers different power.",
-        "size": [8, 8],
-        "rows": [
-            "FFFFFFFF",
-            "FFNFFBFF",
-            "FRFFFFRF",
-            "FFFFTFFF",
-            "FFFTFFFF",
-            "FRFFFFRF",
-            "FFBFFNFF",
-            "FFFFFFFF",
-        ],
-    },
-    "nexus9": {
-        "name": "Nexus 9x9",
-        "desc": "Three promotion clusters — secure the nexus points.",
-        "size": [9, 9],
-        "rows": [
-            "FFFFFFFFF",
-            "FFFFFFFFF",
-            "FFNFFFNFF",
-            "FFRFTFRFF",
-            "FFBFFFBFF",
-            "FFRFTFRFF",
-            "FFNFFFNFF",
-            "FFFFFFFFF",
-            "FFFFFFFFF",
-        ],
-    },
-    "temple9": {
-        "name": "Temple 9x9",
-        "desc": "Power tiles guard the thrones — promotion is the path to victory.",
-        "size": [9, 9],
-        "rows": [
-            "FFFFFFFFF",
-            "FFFFFFFFF",
-            "FFBRFRBFF",
-            "FFNFTFNFF",
-            "FFFFFFFFF",
-            "FFNFTFNFF",
-            "FFBRFRBFF",
-            "FFFFFFFFF",
-            "FFFFFFFFF",
         ],
     },
 }
 
+# boards suitable for plain (no-mode) play; fog-specialist layouts are excluded
+CLASSIC_BOARDS = set(BOARDS) - {'lantern8'}
 
 def make_board(board_id="classic", modes=None):
-    spec = BOARDS.get(board_id) or TILE_PROMO_BOARDS.get(board_id) or BOARDS["classic"]
+    spec = BOARDS.get(board_id) or BOARDS["classic"]
     W, H = spec["size"]
     rows = [r.replace(" ", "")[:W] for r in spec["rows"]]
     p0 = spec.get("p0")
@@ -334,9 +257,19 @@ def canonical_board():
 DECAY_MAP = {'R': 'B', 'B': 'N', 'N': 'F', 'F': 'F', 'T': 'T'}
 FOG_RADIUS = 2
 FOG_MONARCH_RADIUS = 3
+FOG_MEMORY_PLIES = 12  # how long the AI remembers an out-of-sight enemy sighting
 
 DECAY_BOARDS = {'classic', 'standard8', 'sprawl', 'arena9', 'temple9'}
-FOG_BOARDS = {'knights', 'standard8', 'diamond8', 'temple9'}
+# standard8 removed 2026-07: with memory-AI validation its fog games collapse
+# into a forced first-mover coronation race (P0 0.84-0.95 even at hold 4-5)
+FOG_BOARDS = {'knights', 'diamond8', 'temple9', 'lantern8'}
+# momentum: a stone leaving a special tile keeps that rank for one more move.
+# 400-game validated boards only (standard8 passed at combined n=800, ratio
+# 0.497 CI [0.46, 0.53]); mutually exclusive with decay (combo tested
+# degenerate) and fog (untested). Throne-rank included — removing it broke
+# balance in validation.
+MOMENTUM_BOARDS = {'classic', 'citadel', 'knights', 'diamond8', 'standard8'}
+MOMENTUM_GLYPHS = {'R', 'B', 'N', 'T'}
 
 
 class Board:
@@ -348,20 +281,28 @@ class Board:
         self.to_move = to_move
         self.throne_held_since = throne_held_since
         self.modes = modes or set()
+        self.throne_hold_plies = 3
+        self.linger = {}  # momentum mode: cell -> retained glyph (one move)
 
     def clone(self):
         t = dict(self.terrain) if 'decay' in self.modes else self.terrain
         b = Board(self.W, self.H, t, dict(self.pieces),
                   self.to_move, self.throne_held_since, set(self.modes))
+        b.throne_hold_plies = self.throne_hold_plies
+        if self.linger:
+            b.linger = dict(self.linger)
         if getattr(self, '_partial', False):
             b._partial = True
             b._viewer = self._viewer
+            b._unseen = getattr(self, '_unseen', 0)
         return b
 
     def key(self):
         base = (frozenset(self.pieces.items()), self.to_move, self.throne_held_since)
         if 'decay' in self.modes:
-            return base + (frozenset(self.terrain.items()),)
+            base = base + (frozenset(self.terrain.items()),)
+        if 'momentum' in self.modes:
+            base = base + (frozenset(self.linger.items()),)
         return base
 
     # ---- queries ----
@@ -416,7 +357,7 @@ class Board:
         if th is not None:
             if (self.throne_held_since is not None
                     and self.throne_held_since[0] == th
-                    and self.throne_held_since[1] >= 3):
+                    and self.throne_held_since[1] >= self.throne_hold_plies):
                 return th
         if not self.legal_moves(self.to_move):
             return 'draw'
@@ -428,18 +369,16 @@ class Board:
         occ = self.pieces.get((nx, ny))
         return occ is None or occ[0] != owner
 
-    def moves_for(self, cell):
+    def _glyph_moves(self, cell, glyph, owner):
         (x, y) = cell
-        o, is_mon = self.pieces[cell]
-        glyph = 'F' if is_mon else self.terrain[cell]
         out = []
-        if is_mon or glyph == 'F':
+        if glyph == 'F':
             for dx, dy in KING:
-                if self._ok_land(x + dx, y + dy, o):
+                if self._ok_land(x + dx, y + dy, owner):
                     out.append((x + dx, y + dy))
         elif glyph == 'N':
             for dx, dy in KNIGHT:
-                if self._ok_land(x + dx, y + dy, o):
+                if self._ok_land(x + dx, y + dy, owner):
                     out.append((x + dx, y + dy))
         elif glyph in SLIDERS:
             for dx, dy in SLIDERS[glyph]:
@@ -449,10 +388,22 @@ class Board:
                     if occ is None:
                         out.append((nx, ny))
                     else:
-                        if occ[0] != o:
+                        if occ[0] != owner:
                             out.append((nx, ny))
                         break
                     nx, ny = nx + dx, ny + dy
+        return out
+
+    def moves_for(self, cell):
+        o, is_mon = self.pieces[cell]
+        if is_mon:
+            return self._glyph_moves(cell, 'F', o)
+        glyph = self.terrain[cell]
+        out = self._glyph_moves(cell, glyph, o)
+        lg = self.linger.get(cell) if self.linger else None
+        if lg and lg != glyph:  # momentum: retained rank adds to tile moves
+            seen = set(out)
+            out += [m for m in self._glyph_moves(cell, lg, o) if m not in seen]
         return out
 
     def legal_moves(self, owner):
@@ -465,10 +416,16 @@ class Board:
 
     def apply(self, mv):
         fr, to = mv
+        g = self.terrain.get(fr, 'F')
         if 'decay' in self.modes:
-            g = self.terrain.get(fr, 'F')
             self.terrain[fr] = DECAY_MAP.get(g, g)
-        self.pieces[to] = self.pieces.pop(fr)
+        piece = self.pieces.pop(fr)
+        self.pieces[to] = piece
+        if 'momentum' in self.modes:
+            self.linger.pop(fr, None)   # retained rank is spent (used or not)
+            self.linger.pop(to, None)   # captured piece's rank dies with it
+            if not piece[1] and g in MOMENTUM_GLYPHS:
+                self.linger[to] = g     # rank travels with the stone one move
         self.to_move ^= 1
         th = self.throne_holder()
         if th is not None:
@@ -510,9 +467,78 @@ class Board:
         m = set(self.modes) - {'fog'}
         b = Board(self.W, self.H, t, filtered,
                   self.to_move, self.throne_held_since, m)
+        b.throne_hold_plies = self.throne_hold_plies
+        if self.linger:
+            b.linger = dict(self.linger)
         b._partial = True
         b._viewer = owner
         return b
+
+
+def resolve_fog_move(board, mv, viewer):
+    """Fog movement rule: moves are planned on the mover's fog view, so a
+    slider's path may cross an enemy piece the mover cannot see. The slide
+    stops at the first hidden enemy on the path and captures it ('bump').
+    Returns (resolved_move, bumped)."""
+    if 'fog' not in board.modes:
+        return mv, False
+    fr, to = mv
+    p = board.pieces.get(fr)
+    if p is None or p[1]:  # monarch steps 1 — nothing to cross
+        return mv, False
+    if board.terrain.get(fr, 'F') not in SLIDERS:
+        return mv, False
+    dx = (to[0] > fr[0]) - (to[0] < fr[0])
+    dy = (to[1] > fr[1]) - (to[1] < fr[1])
+    x, y = fr[0] + dx, fr[1] + dy
+    while (x, y) != to and (x, y) in board.terrain:
+        occ = board.pieces.get((x, y))
+        if occ is not None:
+            if occ[0] != viewer:
+                return (fr, (x, y)), True
+            return mv, False  # own pieces are always visible; leave to validation
+        x, y = x + dx, y + dy
+    return mv, False
+
+
+def fog_view_for_ai(board, owner):
+    """Fog view plus the information a human player naturally has: memory of
+    recent enemy sightings (kept as ghost pieces for FOG_MEMORY_PLIES of the
+    owner's turns) and the count of enemy pieces still alive (known from
+    capture accounting). Never widens actual vision."""
+    view = board.fog_view(owner)
+    if 'fog' not in board.modes:
+        return view
+    store = getattr(board, '_ai_memory', None)
+    if store is None:
+        store = {}
+        board._ai_memory = store
+    mem = store.setdefault(owner, {'seen': {}, 'seq': 0})
+    mem['seq'] += 1
+    seq = mem['seq']
+    seen = mem['seen']
+    vis = board.visible_cells(owner)
+    for c in vis:
+        occ = board.pieces.get(c)
+        if occ is not None and occ[0] != owner:
+            if occ[1]:  # enemy monarch: keep only the latest sighting
+                for k in [k for k, (pc, _t) in seen.items() if pc[1]]:
+                    del seen[k]
+            seen[c] = (occ, seq)
+        elif c in seen:
+            del seen[c]
+    for c in [c for c, (_pc, t) in seen.items() if seq - t > FOG_MEMORY_PLIES]:
+        del seen[c]
+    enemy_mon_visible = any(o != owner and m for (o, m) in view.pieces.values())
+    for c, (pc, _t) in seen.items():
+        if c in view.pieces or c in vis:
+            continue
+        if pc[1] and enemy_mon_visible:
+            continue
+        view.pieces[c] = pc
+    visible_enemy = sum(1 for (o, _m) in view.pieces.values() if o != owner)
+    view._unseen = max(0, board.piece_count(owner ^ 1) - visible_enemy)
+    return view
 
 
 # ---------------- AI ----------------
@@ -540,11 +566,16 @@ def evaluate(board, owner):
         if board.piece_count(owner ^ 1) == 1:
             return INF
     th = board.throne_holder()
-    if th == owner:
-        return INF // 2
-    if th == (owner ^ 1):
-        return -INF // 2
+    hs = board.throne_held_since
+    if (th is not None and hs is not None and hs[0] == th
+            and hs[1] >= board.throne_hold_plies - 1):
+        # opponent already had their last chance to contest — effectively won
+        return INF // 2 if th == owner else -(INF // 2)
     score = 0.0
+    if th == owner:
+        score += 12.0
+    elif th == (owner ^ 1):
+        score -= 12.0
     emc = board.monarch_cell(owner ^ 1)
     mmc = board.monarch_cell(owner)
     ts = board.thrones()
@@ -568,6 +599,26 @@ def evaluate(board, owner):
             score += 15.0
     if my_count == 2:
         score -= 15.0
+    if partial and viewer is not None:
+        # unseen enemies exist: reward the viewer for keeping the monarch
+        # guarded and the thrones covered instead of overextending
+        unseen = getattr(board, '_unseen', 0)
+        if unseen:
+            vmc = board.monarch_cell(viewer)
+            guards = 0
+            if vmc is not None:
+                for cell, (o, is_mon) in board.pieces.items():
+                    if (o == viewer and not is_mon
+                            and abs(cell[0] - vmc[0]) + abs(cell[1] - vmc[1]) <= 2):
+                        guards += 1
+            cover = 0
+            for t in ts:
+                if any(o == viewer and not is_mon
+                       and abs(c[0] - t[0]) + abs(c[1] - t[1]) <= 2
+                       for c, (o, is_mon) in board.pieces.items()):
+                    cover += 1
+            caution = (min(guards, 3) * 0.4 + cover * 0.35) * min(unseen, 6)
+            score += caution if owner == viewer else -caution
     return score
 
 
@@ -619,8 +670,8 @@ class Searcher:
         moves = _order(board, board.legal_moves(board.to_move))
         if not moves:
             return None, 0, 0
+        self.tt.clear()
         for depth in range(1, self.max_depth + 1):
-            self.tt.clear()
             self.killers.clear()
             cur_best, cur_score = None, -INF
             a = -INF
@@ -637,6 +688,8 @@ class Searcher:
             best, best_score, reached = cur_best, cur_score, depth
             if best_score >= INF // 2:
                 break
+        if best is None:  # timed out before finishing any move: play something legal
+            best = moves[0]
         return best, best_score, reached
 
     def _ab(self, board, owner, depth, a, b):
@@ -654,7 +707,10 @@ class Searcher:
                 return -INF if owner == 1 else INF
         th = board.throne_holder()
         if th is not None and th == board.to_move:
-            return (INF // 2) if th == owner else -(INF // 2)
+            hs = board.throne_held_since
+            if (hs is not None and hs[0] == th
+                    and hs[1] >= board.throne_hold_plies - 1):
+                return (INF // 2) if th == owner else -(INF // 2)
         if depth <= 0:
             return self._quiesce(board, owner, a, b, 0)
 
@@ -758,12 +814,17 @@ class Searcher:
         return best
 
 
-def ai_move(board, time_budget=1.0, max_depth=5):
-    view = board.fog_view(board.to_move)
+def ai_move(board, time_budget=1.0, max_depth=5, fog_memory=True):
+    if fog_memory:
+        view = fog_view_for_ai(board, board.to_move)
+    else:
+        view = board.fog_view(board.to_move)
     total_pieces = len(view.pieces)
     noise = 1.5 if total_pieces >= 12 else 0.5 if total_pieces >= 8 else 0.0
     s = Searcher(time_budget=time_budget, max_depth=max_depth, noise=noise)
     mv, score, depth = s.search(view, view.to_move)
+    if mv is not None:
+        mv, _ = resolve_fog_move(board, mv, board.to_move)
     return mv, {"score": round(score, 1), "depth": depth, "nodes": s.nodes}
 
 

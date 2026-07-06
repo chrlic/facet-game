@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FACET — Admin</title>
+<script src="vue.global.prod.js"></script>
+<style>
+  :root{--bg:#0f1320;--panel:#171c2e;--ink:#e7ecf5;--muted:#8b95ad;
+        --hl:#5be0a8;--sel:#ffd84d;--bad:#e07a6a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px}
+  h1{font-weight:800;letter-spacing:2px;margin:0 0 14px;font-size:22px}
+  h2{font-size:15px;margin:0 0 8px}
+  .card{background:var(--panel);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{background:#243049;color:var(--ink);border:1px solid #33415f;
+         padding:6px 12px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px}
+  button:hover{background:#2c3a58}
+  button.danger{border-color:#7a3b34;color:var(--bad)}
+  input{background:#0c1020;color:var(--ink);border:1px solid #33415f;
+        border-radius:8px;padding:7px;font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid #232b42}
+  th{color:var(--muted);font-weight:600}
+  .muted{color:var(--muted)}
+  .statgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .stat{background:#0c1020;border-radius:10px;padding:10px}
+  .stat b{font-size:20px;display:block}
+  .stat span{font-size:12px;color:var(--muted)}
+  .tag{font-size:11px;padding:1px 6px;border-radius:5px;background:#243049}
+  .err{color:var(--bad);font-size:13px}
+  .ok{color:var(--hl)}
+  .temp{background:#0c1020;border-radius:8px;padding:8px;margin-top:8px;font-size:13px}
+  .temp b{color:var(--sel)}
+</style>
+</head>
+<body>
+<div id="app" class="wrap">
+  <h1>FACET ADMIN <a href="./" style="font-size:13px;color:var(--hl);margin-left:10px">← game</a></h1>
+
+  <div class="card" v-if="!authed">
+    <h2>Admin login</h2>
+    <div class="row">
+      <input v-model="name" placeholder="name" @keyup.enter="login">
+      <input v-model="pass" type="password" placeholder="password" @keyup.enter="login">
+      <button @click="login">Login</button>
+      <span class="err" v-if="err">{{ err }}</span>
+    </div>
+  </div>
+
+  <template v-if="authed">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Overview</h2>
+        <span class="row">
+          <span class="muted" style="font-size:12px">as {{ name }}</span>
+          <button @click="refresh">Refresh</button>
+          <button @click="logout">Logout</button>
+        </span>
+      </div>
+      <div class="statgrid" style="margin-top:10px" v-if="stats">
+        <div class="stat"><b>{{ stats.players_total }}</b><span>players ({{ stats.players_guests }} guests, +{{ stats.players_new_24h }} today)</span></div>
+        <div class="stat"><b>{{ stats.games_active }}</b><span>active games ({{ stats.games_active_pvp }} PvP)</span></div>
+        <div class="stat"><b>{{ stats.games_finished }}</b><span>finished ({{ stats.games_finished_24h }} last 24h)</span></div>
+        <div class="stat"><b>{{ stats.games_aborted }}</b><span>aborted</span></div>
+        <div class="stat"><b>{{ stats.games_rated }}</b><span>rated games</span></div>
+        <div class="stat"><b>{{ stats.moves_total }}</b><span>moves ({{ stats.moves_24h }} last 24h)</span></div>
+        <div class="stat"><b>{{ stats.open_seeks }}</b><span>open seeks</span></div>
+        <div class="stat"><b>{{ stats.sessions_active }}</b><span>active sessions</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Players ({{ players.length }})</h2>
+        <input v-model="q" placeholder="search name…" @input="loadPlayers">
+      </div>
+      <div class="temp" v-if="tempPw">
+        Temporary password for <b>{{ tempPw.name }}</b>:
+        <b>{{ tempPw.temp_password }}</b>
+        <span class="muted">— all their sessions were logged out; shown only once.</span>
+        <button style="margin-left:8px" @click="tempPw=null">Dismiss</button>
+      </div>
+      <table style="margin-top:8px">
+        <tr><th>name</th><th>rating</th><th>rated</th><th>games (act/fin)</th>
+            <th>type</th><th>last seen</th><th>created</th><th></th></tr>
+        <tr v-for="p in players" :key="p.id">
+          <td><b>{{ p.name }}</b> <span class="tag" v-if="p.is_admin" style="color:var(--sel)">admin</span></td>
+          <td>{{ Math.round(p.rating) }}</td>
+          <td>{{ p.rated_games }}</td>
+          <td>{{ p.active_games }} / {{ p.finished_games }}</td>
+          <td><span class="tag">{{ p.is_guest ? 'guest' : 'account' }}</span></td>
+          <td class="muted">{{ ago(p.last_seen) }}</td>
+          <td class="muted">{{ (p.created_at||'').slice(0,10) }}</td>
+          <td><button v-if="!p.is_guest" @click="resetPw(p.name)">Reset password</button></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Active games ({{ games.length }})</h2>
+      <table>
+        <tr><th>white</th><th>black</th><th>board</th><th>modes</th><th>type</th>
+            <th>ply</th><th>started</th><th>last move</th><th></th></tr>
+        <tr v-for="g in games" :key="g.id">
+          <td>{{ g.white }}</td><td>{{ g.black }}</td>
+          <td>{{ g.board }}</td>
+          <td class="muted">{{ (g.modes||[]).join('+') || '—' }}
+              <span class="tag" v-if="g.rated" style="color:var(--sel)">rated</span></td>
+          <td>{{ g.type }}<span class="muted" v-if="g.difficulty"> ({{ g.difficulty }})</span></td>
+          <td>{{ g.ply }}</td>
+          <td class="muted">{{ ago(g.created_at) }}</td>
+          <td class="muted">{{ ago(g.last_move_at) }}</td>
+          <td><button class="danger" @click="abortGame(g)">Abort</button></td>
+        </tr>
+      </table>
+    </div>
+  </template>
+</div>
+
+<script>
+const { createApp } = Vue;
+createApp({
+  data(){return{
+    token:localStorage.getItem('facet_admin_token')||null,
+    authed:false, name:'', pass:'', err:null,
+    stats:null, players:[], games:[], q:'', tempPw:null,
+  }},
+  methods:{
+    async api(path, body){
+      const opt={method:body!==undefined?'POST':'GET',headers:{}};
+      if(body!==undefined){opt.headers['Content-Type']='application/json';opt.body=JSON.stringify(body);}
+      if(this.token)opt.headers['Authorization']='Bearer '+this.token;
+      const r=await fetch(path,opt);
+      return r.json();
+    },
+    async login(){
+      this.err=null;
+      const r=await this.api('/api/v1/auth/login',{name:this.name,password:this.pass});
+      if(r.error){ this.err=r.error; return; }
+      this.token=r.token;
+      const probe=await this.api('/api/v1/admin/overview');
+      if(probe.error){ this.err='This account has no admin access.'; this.token=null; return; }
+      localStorage.setItem('facet_admin_token',this.token);
+      this.pass=''; this.authed=true;
+      this.stats=probe.stats;
+      this.refresh();
+    },
+    logout(){
+      this.api('/api/v1/auth/logout',{});
+      localStorage.removeItem('facet_admin_token');
+      this.token=null; this.authed=false;
+    },
+    async refresh(){
+      const [o,g]=await Promise.all([this.api('/api/v1/admin/overview'),
+                                     this.api('/api/v1/admin/games')]);
+      if(o.stats)this.stats=o.stats;
+      if(g.games)this.games=g.games;
+      this.loadPlayers();
+    },
+    async loadPlayers(){
+      const r=await this.api('/api/v1/admin/players'+(this.q?`?q=${encodeURIComponent(this.q)}`:''));
+      if(r.players)this.players=r.players;
+    },
+    async resetPw(name){
+      if(!confirm(`Reset password for ${name}? All their sessions will be logged out.`))return;
+      const r=await this.api(`/api/v1/admin/players/${encodeURIComponent(name)}/reset_password`,{});
+      if(r.error){ alert(r.error); return; }
+      this.tempPw=r;
+    },
+    async abortGame(g){
+      if(!confirm(`Abort ${g.white} vs ${g.black} on ${g.board}? No result will be recorded.`))return;
+      const r=await this.api(`/api/v1/admin/games/${g.id}/abort`,{});
+      if(r.error){ alert(r.error); return; }
+      this.refresh();
+    },
+    ago(ts){
+      if(!ts) return '';
+      const s=(Date.now()-new Date(ts).getTime())/1000;
+      if(s<90) return 'just now';
+      if(s<3600) return Math.round(s/60)+'m ago';
+      if(s<86400) return Math.round(s/3600)+'h ago';
+      return Math.round(s/86400)+'d ago';
+    },
+  },
+  async mounted(){
+    if(this.token){
+      const probe=await this.api('/api/v1/admin/overview');
+      if(!probe.error){ this.authed=true; this.stats=probe.stats; this.refresh(); }
+      else this.token=null;
+    }
+    setInterval(()=>{ if(this.authed) this.refresh(); }, 15000);
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
