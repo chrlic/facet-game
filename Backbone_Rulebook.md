@@ -140,6 +140,10 @@ Row 0:   P1 . . . . . . . .
 - **Longer game:** play to 16 AI tokens and raise the hand limit to 12 BW.
 - **Original draft (v1.0):** play the rules exactly as first printed — see the Appendix below. Not recommended for competitive play; kept for historical/comparison interest.
 
+## Digital Play Notes
+
+The online/offline app (`docs/backbone.html`) can explain each AI move in plain language — what it played and its strategic aim (Expand/Score/Defend/Disrupt/Consolidate/Wait) — shown as a card after the AI's turn. This is a display aid only, not a rule: toggle it on or off with the **"Explain AI moves"** checkbox next to "New AI game" (on by default; the choice is remembered on that device).
+
 ---
 
 ## Appendix: Original Draft (v1.0)
