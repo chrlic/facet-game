@@ -1,13 +1,14 @@
 # FACET (+ BACKBONE)
 
 A chess-inspired strategy game where the board shapes your pieces. Your move isn't determined by what piece you are — it's determined by where you stand.
+An illustrated, printable player's guide is at `FACET_GUIDE.pdf`.
 
 The server also hosts **BACKBONE** (`/backbone.html`) — a 2-player
-network-building game on a hex grid (rules in `Backbone_Rulebook.md`):
-build routers, servers and datacenters, connect cities, hack your rival.
-Same accounts, lobby, ratings, AI difficulties, and offline mode as FACET;
-engine in `backbone_engine.py` with a line-for-line JS port
-(`docs/backbone_engine.js`, parity-verified).
+network-building game on a hex grid (rules in `Backbone_Rulebook.md`,
+illustrated guide at `BACKBONE_GUIDE.pdf`): build routers, servers and
+datacenters, connect cities, hack your rival. Same accounts, lobby, ratings,
+AI difficulties, and offline mode as FACET; engine in `backbone_engine.py`
+with a line-for-line JS port (`docs/backbone_engine.js`, parity-verified).
 
 ## The idea
 
@@ -109,6 +110,24 @@ The AI can also propose and evaluate draw offers based on its position evaluatio
 In fog of war the AI searches only its own fog view — it never peeks at the
 full board. It remembers recent enemy sightings (like a human does) and plays
 more cautiously while enemy pieces are unaccounted for.
+
+## Digital Play Notes
+
+These are software controls the app provides on top of the ruleset above —
+not tabletop rules themselves:
+
+- **Mode/board/side selection** — before starting a new game, pick optional
+  modes (terrain decay, fog of war, momentum — see *Optional modes* above),
+  a board, and your side (White/Black/Random) from the checkboxes and
+  dropdowns on the new-game screen.
+- **Rated toggle** — registered (non-guest) players can check "Rated" when
+  offering or accepting a PvP game so it counts toward Elo; AI games and
+  guest games are always casual (see *Ratings & ranks* above).
+- **Draw offers** — either side can offer a draw mid-game; the opponent sees
+  Accept/Decline buttons at that point.
+- **Bug reporter** — built into the UI; captures full reproducible board
+  state, move history, and AI search info in one downloadable report (see
+  *Bug reports* below).
 
 ## Play in the browser (no install)
 

@@ -1,0 +1,785 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>FACET — Player's Guide</title>
+<style>
+  @page { size: A4; margin: 20mm 16mm; }
+  *{box-sizing:border-box}
+  body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#20242e;
+       line-height:1.55;font-size:13.5px;max-width:760px;margin:0 auto}
+  h1{font-size:30px;letter-spacing:3px;margin:0 0 2px;font-weight:800}
+  h2{font-size:19px;margin:30px 0 10px;padding-bottom:6px;border-bottom:2px solid #20242e;
+     page-break-after:avoid}
+  h3{font-size:15px;margin:16px 0 6px;page-break-after:avoid}
+  .tag{color:#5a6072;font-size:13px;margin:0 0 18px}
+  .cover{text-align:center;padding:70px 0 40px;page-break-after:always}
+  .cover .tag{font-size:15px;margin-top:6px}
+  .cover .ver{margin-top:60px;font-size:12px;color:#8a90a0}
+  table{border-collapse:collapse;width:100%;margin:10px 0 16px;font-size:12.5px}
+  th,td{border:1px solid #dfe3ea;padding:6px 9px;text-align:left;vertical-align:top}
+  th{background:#f4f6fb;font-weight:700}
+  .callout{background:#f4f6fb;border-left:4px solid #2560a8;padding:10px 14px;
+           border-radius:0 8px 8px 0;margin:14px 0;font-size:12.5px}
+  .callout.warn{border-color:#c0392b;background:#fbf1ef}
+  .callout b{color:#20242e}
+  .figrow{margin:10px 0}
+  .p1{color:#1a7a52;font-weight:700} .p2{color:#2560a8;font-weight:700}
+  .stepbox{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap;break-inside:avoid;page-break-inside:avoid}
+  .step{flex:1;min-width:130px;background:#f4f6fb;border-radius:10px;padding:10px 12px;
+        font-size:12px;break-inside:avoid;page-break-inside:avoid}
+  table{break-inside:avoid;page-break-inside:avoid}
+  .quickref{break-inside:avoid;page-break-inside:avoid}
+  .callout{break-inside:avoid;page-break-inside:avoid}
+  .step b{display:block;font-size:12.5px;margin-bottom:3px}
+  .quickref{background:#20242e;color:#eef1f7;padding:18px 20px;border-radius:12px;margin-top:20px}
+  .quickref h2{color:#fff;border-color:#4a5066}
+  .quickref table{font-size:12px}
+  .quickref th,.quickref td{border-color:#3a4055;color:#eef1f7}
+  .quickref th{background:#2a2f42}
+  footer{margin-top:24px;font-size:10.5px;color:#9aa0ae;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>FACET</h1>
+  <div class="tag">A chess-inspired strategy game for 2 players<br>Ages 10+ &middot; 15&ndash;30 minutes &middot; square board</div>
+  <div style="margin-top:50px">
+    <svg viewBox="-16 -16 330 330" width="330" height="330" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="215" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="258" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="215" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="258" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="86" width="40" height="40" rx="6" fill="#2f8f5b" opacity="1"/>
+<text x="33" y="101" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♝</text>
+<rect x="43" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="86" width="40" height="40" rx="6" fill="#c4772a" opacity="1"/>
+<text x="119" y="101" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♞</text>
+<rect x="129" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="86" width="40" height="40" rx="6" fill="#c4772a" opacity="1"/>
+<text x="205" y="101" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♞</text>
+<rect x="215" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="258" y="86" width="40" height="40" rx="6" fill="#2f8f5b" opacity="1"/>
+<text x="291" y="101" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♝</text>
+<rect x="0" y="129" width="40" height="40" rx="6" fill="#2d5fa6" opacity="1"/>
+<text x="33" y="144" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♜</text>
+<rect x="43" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="129" width="40" height="40" rx="6" fill="#caa12e" opacity="1"/>
+<text x="119" y="144" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♛</text>
+<rect x="129" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="129" width="40" height="40" rx="6" fill="#caa12e" opacity="1"/>
+<text x="205" y="144" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♛</text>
+<rect x="215" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="258" y="129" width="40" height="40" rx="6" fill="#2d5fa6" opacity="1"/>
+<text x="291" y="144" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♜</text>
+<rect x="0" y="172" width="40" height="40" rx="6" fill="#2f8f5b" opacity="1"/>
+<text x="33" y="187" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♝</text>
+<rect x="43" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="172" width="40" height="40" rx="6" fill="#c4772a" opacity="1"/>
+<text x="119" y="187" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♞</text>
+<rect x="129" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="172" width="40" height="40" rx="6" fill="#c4772a" opacity="1"/>
+<text x="205" y="187" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♞</text>
+<rect x="215" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="258" y="172" width="40" height="40" rx="6" fill="#2f8f5b" opacity="1"/>
+<text x="291" y="187" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♝</text>
+<rect x="0" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="215" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="258" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="215" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="258" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="20" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<circle cx="63" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<circle cx="149" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<circle cx="149" cy="20" r="19" fill="none" stroke="#c9971f" stroke-width="2"/>
+<circle cx="192" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<circle cx="235" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<circle cx="278" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<circle cx="20" cy="278" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="63" cy="278" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="278" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="149" cy="278" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="149" cy="278" r="19" fill="none" stroke="#c9971f" stroke-width="2"/>
+<circle cx="192" cy="278" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="235" cy="278" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="278" cy="278" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<text x="20" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">•</text>
+<text x="63" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">•</text>
+<text x="106" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">•</text>
+<text x="149" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">♚</text>
+<text x="192" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">•</text>
+<text x="235" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">•</text>
+<text x="278" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">•</text>
+<text x="20" y="284" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">•</text>
+<text x="63" y="284" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">•</text>
+<text x="106" y="284" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">•</text>
+<text x="149" y="284" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♚</text>
+<text x="192" y="284" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">•</text>
+<text x="235" y="284" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">•</text>
+<text x="278" y="284" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">•</text>
+</svg>
+  </div>
+  <div class="ver">Player's Guide &middot; Classic 7&times;7 board shown &middot; 10 boards, 3 optional modes</div>
+</div>
+
+<h2>Objective</h2>
+<p>Every stone is identical — what it can do is granted entirely by the <b>terrain tile</b> it stands
+on. Move your stones across the board, using the tiles beneath them, until you either capture the
+enemy <b>Monarch</b>, hold both <b>Thrones</b> long enough to be crowned, or strip the enemy down to
+a bare Monarch with nothing left to fight with.</p>
+
+<h2>The Board</h2>
+<p>A square grid (7&times;7, 8&times;8, or 9&times;9 depending on the board). Every board is
+180&deg; rotationally symmetric with exactly two Throne tiles, so neither side starts with a
+geometric advantage. Five terrain types are scattered across it:</p>
+<table>
+<tr><th>Tile</th><th>Name</th><th>Grants this move</th></tr>
+<tr><td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#2a3147;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#8226;</span> Field</td><td>Step 1 square in any direction (like a king).</td></tr><tr><td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#2d5fa6;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#9820;</span> Tower</td><td>Slide horizontally or vertically, any distance (like a rook).</td></tr><tr><td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#2f8f5b;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#9821;</span> Spire</td><td>Slide diagonally, any distance (like a bishop).</td></tr><tr><td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#c4772a;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#9822;</span> Gate</td><td>Leap in an L-shape, ignoring anything in between (like a knight).</td></tr>
+<tr><td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#caa12e;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#9819;</span> Throne</td><td>Slide in all 8 directions, any distance (like a queen) — also a win objective.</td></tr>
+</table>
+<div class="callout">A stone's move is <b>not fixed</b> — it's whatever the tile underneath currently
+grants. Slide a piece from a Tower onto a Gate and its next move is a knight-leap, not a rook-slide.
+The board itself is the most important piece.</div>
+
+<h2>Terrain &amp; Movement</h2>
+<p>Sliders (Tower, Spire, Throne) travel any distance in their directions until blocked by a piece —
+landing on an enemy captures it, landing on your own is illegal, and you stop right there either way.
+The Gate leaps in an L exactly like a knight and never cares what's in between.</p>
+<div class="figrow">
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 244 244" width="244" height="244" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="106" cy="106" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<text x="106" y="112" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">•</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">Field: 1 step, any of the 8 directions.</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 244 244" width="244" height="244" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="2" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="0" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="174" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="86" width="40" height="40" rx="6" fill="#2d5fa6" opacity="1"/>
+<text x="119" y="101" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♜</text>
+<rect x="86" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="174" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="172" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="106" cy="106" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="63" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<text x="106" y="112" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♜</text>
+<text x="106" y="69" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">•</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">Tower: slides orthogonally — an enemy in the way is captured, and the slide stops there.</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 244 244" width="244" height="244" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="2" y="174" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="0" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="2" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="86" width="40" height="40" rx="6" fill="#2f8f5b" opacity="1"/>
+<text x="119" y="101" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♝</text>
+<rect x="86" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="174" y="174" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="172" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="174" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<circle cx="106" cy="106" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<text x="106" y="112" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♝</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">Spire: slides diagonally, same blocking rule.</figcaption>
+    </figure>
+</div>
+<div class="figrow">
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 244 244" width="244" height="244" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="2" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="0" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="2" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="174" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="86" width="40" height="40" rx="6" fill="#c4772a" opacity="1"/>
+<text x="119" y="101" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♞</text>
+<rect x="86" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="174" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="172" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="174" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="172" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="174" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="106" cy="106" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="63" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<text x="106" y="112" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♞</text>
+<text x="106" y="69" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">•</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">Gate: leaps in an L — the piece one square away is completely irrelevant, the leap ignores it.</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 244 244" width="244" height="244" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="2" y="174" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="0" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="2" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="0" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="2" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="174" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="86" width="40" height="40" rx="6" fill="#caa12e" opacity="1"/>
+<text x="119" y="101" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♛</text>
+<rect x="86" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="174" y="174" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="172" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="174" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="172" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="174" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<circle cx="106" cy="106" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<text x="106" y="112" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♛</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">Throne: slides in all 8 directions — a Tower and a Spire's movement combined.</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 244 244" width="244" height="244" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="86" width="40" height="40" rx="6" fill="#caa12e" opacity="1"/>
+<text x="119" y="101" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♛</text>
+<rect x="86" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="132" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="88" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="132" y="46" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="106" cy="106" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="106" r="19" fill="none" stroke="#c9971f" stroke-width="2"/>
+<text x="106" y="112" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♚</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">The Monarch is the one exception: always exactly 1 step, no matter which tile it stands on — even a Throne.</figcaption>
+    </figure>
+</div>
+
+<h2>Capture</h2>
+<p>Land on a square occupied by an enemy stone to capture it — it's removed from the game
+immediately. You may never land on your own stone. Sliders stop the instant they capture; they
+can't continue past it in the same move.</p>
+<div class="figrow">
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 158 72" width="158" height="72" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<circle cx="20" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<text x="20" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♜</text>
+<text x="106" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">•</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">Ana's Tower can slide onto either empty square, or capture Ben's stone two squares away.</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 178 96" width="178" height="96" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="106" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<text x="106" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♜</text>
+<text x="106" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">Ben's piece is</text>
+<text x="106" y="65" text-anchor="middle" font-size="10.5" fill="#5a6072">removed from play</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">Landing on it removes it from play — Ana's piece now stands on that square.</figcaption>
+    </figure>
+</div>
+
+<h2>Winning the Game</h2>
+<p>Three ways to win — no draw-by-points here, every decisive game ends in exactly one of these:</p>
+<div class="figrow">
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 195 96" width="195" height="96" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<circle cx="20" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="20" r="19" fill="none" stroke="#c9971f" stroke-width="2"/>
+<text x="20" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♜</text>
+<text x="106" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">♚</text>
+<text x="106" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">captured — game over</text>
+<text x="106" y="65" text-anchor="middle" font-size="10.5" fill="#5a6072">immediately (Regicide)</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4"><b>Regicide</b> — capture the enemy Monarch. Game over immediately, no matter the material on the board.</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-39 -16 181 96" width="181" height="96" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#caa12e" opacity="1"/>
+<text x="33" y="15" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♛</text>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#caa12e" opacity="1"/>
+<text x="119" y="15" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♛</text>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="20" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<text x="20" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♛</text>
+<text x="20" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">held 3 of 3 rounds</text>
+<text x="20" y="65" text-anchor="middle" font-size="10.5" fill="#5a6072">→ Coronation win</text>
+<text x="106" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♜</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4"><b>Coronation</b> — hold every Throne tile for a full round (3 plies). The opponent always gets one turn to contest it first before it counts.</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:30%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-36 -16 198 96" width="198" height="96" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="63" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="1"/>
+<circle cx="63" cy="20" r="19" fill="none" stroke="#c9971f" stroke-width="2"/>
+<text x="63" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="1">♚</text>
+<text x="63" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">no agents left —</text>
+<text x="63" y="65" text-anchor="middle" font-size="10.5" fill="#5a6072">bare Monarch loses on the spot</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4"><b>Elimination</b> — the enemy is reduced to a bare Monarch with no other stones left. Even undefeated, a lone Monarch immediately loses.</figcaption>
+    </figure>
+</div>
+<div class="callout">If the player to move has no legal move at all, the game is a <b>draw</b>. Either
+side may also offer a draw at any time; the opponent can accept or decline.</div>
+
+<h2>Optional Modes</h2>
+<p>Selected before the game starts; the board list only offers layouts that were simulation-tested
+for whichever mode is active.</p>
+
+<h3>Terrain Decay</h3>
+<p>Every time a stone <i>leaves</i> a special tile, that tile degrades one tier — permanently, for
+both players. Thrones never decay. Movement power becomes a resource you spend, not a fixture of
+the map.</p>
+<div class="figrow">
+  <figure style="display:inline-block;width:22%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 115 85" width="115" height="85" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2d5fa6" opacity="1"/>
+<text x="33" y="15" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♜</text>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<circle cx="20" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<text x="20" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♜</text>
+<text x="20" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">Tower</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">A Tower, about to be vacated.</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:40%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-62 -16 165 96" width="165" height="96" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2f8f5b" opacity="1"/>
+<text x="33" y="15" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♝</text>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="63" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<text x="20" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">degraded to Spire</text>
+<text x="20" y="65" text-anchor="middle" font-size="10.5" fill="#5a6072">(the tile the stone left)</text>
+<text x="63" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♝</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">Tower &rarr; Spire &rarr; Gate &rarr; Field — one tier per departure. The next stone to land here inherits whatever tier is left.</figcaption>
+    </figure>
+</div>
+
+<h3>Fog of War</h3>
+<p>Each side sees only a radius around their own stones — Manhattan distance 2 for ordinary stones,
+3 around the Monarch. Thrones are always visible to both sides regardless of distance. Enemy stones
+you've spotted linger as faded <b>ghosts</b> at their last-known square after they leave your sight —
+useful memory, but they may not still be there.</p>
+<div class="figrow">
+  <figure style="display:inline-block;width:46%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 370 330" width="370" height="330" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="86" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="86" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="86" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="129" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="129" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="172" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="172" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="172" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="215" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<circle cx="149" cy="149" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="278" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="0.5"/>
+<polygon points="149,39 259,149 149,259 39,149" fill="#1a7a5222" stroke="#1a7a52" stroke-width="2" stroke-dasharray="5,4"/>
+<text x="149" y="155" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">•</text>
+<text x="278" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="0.5">?</text>
+<text x="278" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">ghost — last seen here,</text>
+<text x="278" y="65" text-anchor="middle" font-size="10.5" fill="#5a6072">may have moved</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">An ordinary stone's sight (radius 2). The enemy stone outside it is remembered as a ghost, not seen live.</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:46%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 330 330" width="330" height="330" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="0" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="86" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="86" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="129" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="172" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="215" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="215" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="215" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="215" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="258" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="215" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="172" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="129" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="258" y="86" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="43" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<rect x="258" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="0.3"/>
+<circle cx="149" cy="149" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="149" cy="149" r="19" fill="none" stroke="#c9971f" stroke-width="2"/>
+<polygon points="149,-4 302,149 149,302 -4,149" fill="#1a7a5222" stroke="#1a7a52" stroke-width="2" stroke-dasharray="5,4"/>
+<text x="149" y="155" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♚</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">The Monarch sees further — radius 3 — reflecting the extra danger it's in.</figcaption>
+    </figure>
+</div>
+<p>Because a slider's path can cross a square you can't currently see, moves are planned on your own
+fog view — if that path actually crosses a hidden enemy, the slide <b>bumps</b>: it stops at the
+first hidden piece it meets and captures it there, instead of reaching wherever you intended.</p>
+<div class="figrow">
+  <figure style="display:inline-block;width:46%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 261 96" width="261" height="96" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="86" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="88" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<rect x="129" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="172" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="174" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#c0392b" stroke-width="2.4" stroke-dasharray="4,3"/>
+<circle cx="20" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="106" cy="20" r="15.5" fill="#2a304a" stroke="#c0caee" stroke-width="2" opacity="0.5"/>
+<text x="20" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♜</text>
+<text x="106" y="26" text-anchor="middle" font-size="18" fill="#f0f4ff" opacity="0.5">•</text>
+<text x="106" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">BUMP — hidden,</text>
+<text x="106" y="65" text-anchor="middle" font-size="10.5" fill="#5a6072">captured here</text>
+<text x="192" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">intended target,</text>
+<text x="192" y="65" text-anchor="middle" font-size="10.5" fill="#5a6072">never reached</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">You slide intending (0,0)&rarr;(4,0). An enemy you couldn't see was waiting at (2,0) — the slide stops and captures it there instead.</figcaption>
+    </figure>
+</div>
+<div class="callout">The AI plays fog games under the exact same blindfold — it never peeks at the
+full board, and keeps the same kind of short-term memory of recent sightings a human player would.</div>
+
+<h3>Momentum</h3>
+<p>A stone that leaves a special tile keeps that tile's rank for <b>one more move</b>, layered on top
+of whatever its new tile grants. The retained rank is public information (shown as a badge on the
+stone) and expires the move after next. Leaving a Throne this way keeps the queen-slide alive for one
+extra move — throne raids get a real exit, instead of being stranded the instant they retreat.</p>
+<div class="figrow">
+  <figure style="display:inline-block;width:22%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-16 -16 115 85" width="115" height="85" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#caa12e" opacity="1"/>
+<text x="33" y="15" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♛</text>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<rect x="46" y="2" width="35" height="35" rx="4.5" fill="none" stroke="#1a7a52" stroke-width="3"/>
+<circle cx="20" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<text x="20" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">♛</text>
+<text x="20" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">Throne</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">A Queen-mover on the Throne...</figcaption>
+    </figure>
+  <figure style="display:inline-block;width:40%;vertical-align:top;margin:8px 1%;text-align:center;break-inside:avoid;page-break-inside:avoid">
+      <div style="border:1px solid #dfe3ea;border-radius:10px;padding:10px;background:#fff"><svg viewBox="-36 -16 198 96" width="198" height="96" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="40" height="40" rx="6" fill="#caa12e" opacity="1"/>
+<text x="33" y="15" text-anchor="end" font-size="15" fill="#ffffff55" opacity="1">♛</text>
+<rect x="43" y="0" width="40" height="40" rx="6" fill="#2a3147" opacity="1"/>
+<circle cx="63" cy="20" r="15.5" fill="#f4f6fb" stroke="#10131c" stroke-width="2" opacity="1"/>
+<circle cx="76" cy="8" r="8" fill="#0c1020" stroke="#c9971f" stroke-width="1.3"/>
+<text x="63" y="26" text-anchor="middle" font-size="18" fill="#10131c" opacity="1">•</text>
+<text x="76" y="11" text-anchor="middle" font-size="9" fill="#c9971f">♛</text>
+<text x="63" y="54" text-anchor="middle" font-size="10.5" fill="#5a6072">on a Field tile now, but still</text>
+<text x="63" y="65" text-anchor="middle" font-size="10.5" fill="#5a6072">queen-slides for 1 more move</text>
+</svg></div>
+      <figcaption style="font-size:11.5px;color:#5a6072;margin-top:5px;line-height:1.4">...slides off to a Field tile. It only steps 1 square from here on its OWN tile grant, but the retained badge means this next move can still be a full queen-slide.</figcaption>
+    </figure>
+</div>
+<div class="callout warn">Momentum is mutually exclusive with Decay and Fog — pick at most one mode
+per game.</div>
+
+<h2>Side Choice &amp; Difficulty</h2>
+<p>White moves first — a measurable advantage — so before each game you choose to play White,
+Black, or Random; your own stones always render at the bottom of the screen regardless. Against the
+AI, pick Easy, Normal, or Hard: deeper difficulties search further ahead and take longer to move,
+including proposing and evaluating their own draw offers based on the position.</p>
+
+<h2>Strategy Tips</h2>
+<ul>
+<li>Watch the tile, not the piece — the same stone is a lumbering Field-walker one move and a
+rook on the next, purely because of where it's standing.</li>
+<li>The Gate ignores everything in its path. In cramped, piece-dense positions it's often your only
+stone that can actually reach a square this turn.</li>
+<li>Never let your Monarch's safety depend on "the enemy probably won't find a way in" — Regicide
+ends the game outright, no matter how far ahead you are on material.</li>
+<li>Coronation gives the opponent exactly one turn to contest a Throne you're about to lock down —
+that turn is your last chance to break the hold, not a moment to waste elsewhere.</li>
+<li>Running an enemy down to their last non-Monarch piece is just as final as capturing their King —
+count remaining agents, not just position.</li>
+<li>In Fog games, a ghost marker is memory, not certainty — don't slide a valuable piece through a
+square you merely <i>remember</i> being empty.</li>
+</ul>
+
+<div class="quickref">
+  <h2 style="margin-top:0">Quick Reference</h2>
+  <table>
+    <tr><th>Tile</th><th>Grants</th><th>Tile</th><th>Grants</th></tr>
+    <tr><td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#2a3147;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#8226;</span> Field</td><td>step 1</td>
+        <td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#c4772a;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#9822;</span> Gate</td><td>knight leap</td></tr>
+    <tr><td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#2d5fa6;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#9820;</span> Tower</td><td>rook slide</td>
+        <td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#caa12e;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#9819;</span> Throne</td><td>queen slide</td></tr>
+    <tr><td><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:#2f8f5b;color:#fff;font-size:11px;vertical-align:-3px;margin-right:2px">&#9821;</span> Spire</td><td>bishop slide</td><td></td><td></td></tr>
+  </table>
+  <table>
+    <tr><th>Rule</th><th>Value</th></tr>
+    <tr><td>Win conditions</td><td>Regicide, Coronation (hold all Thrones 3 plies), Elimination (bare Monarch)</td></tr>
+    <tr><td>Monarch move</td><td>always 1 step, ignores terrain</td></tr>
+    <tr><td>No legal move</td><td>draw (or by mutual agreement any time)</td></tr>
+    <tr><td>Decay chain</td><td>Tower &rarr; Spire &rarr; Gate &rarr; Field (Thrones never decay)</td></tr>
+    <tr><td>Fog sight radius</td><td>2 (ordinary), 3 (Monarch); Thrones always visible</td></tr>
+    <tr><td>Momentum</td><td>retained rank lasts 1 extra move; not combinable with Decay/Fog</td></tr>
+  </table>
+</div>
+
+<footer>FACET Player's Guide &middot; generated from the live ruleset (facet_engine.py) &middot; diagrams drawn with the game's own board geometry and colors</footer>
+
+</body></html>
