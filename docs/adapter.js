@@ -55,6 +55,13 @@ class ServerAdapter{
     return r;
   }
   async move(id,from,to){return this._fetch(`/api/v1/games/${id}/move`,{from,to});}
+  async newGameTyped(gameType,difficulty,humanSide){
+    const r=await this._fetch("/api/v1/games",
+      {game_type:gameType,difficulty,human_side:humanSide||0});
+    if(r.game_id){r.id=r.game_id;r.human_side=r.meta.your_side;}
+    return r;
+  }
+  async moveAction(id,action){return this._fetch(`/api/v1/games/${id}/move`,{action});}
   async aiMove(id){return this._fetch(`/api/v1/games/${id}/ai`,{});}
   async offerDraw(id){return this._fetch(`/api/v1/games/${id}/draw`,{action:"offer"});}
   async drawAction(id,action){return this._fetch(`/api/v1/games/${id}/draw`,{action});}
@@ -69,8 +76,8 @@ class ServerAdapter{
   }
   // ---- lobby ----
   async getSeeks(){return this._fetch("/api/v1/seeks");}
-  async createSeek(board,modes,sidePref,rated,target){
-    return this._fetch("/api/v1/seeks",{board,modes:modes||[],side_pref:sidePref,rated:!!rated,target:target||null});
+  async createSeek(board,modes,sidePref,rated,target,gameType){
+    return this._fetch("/api/v1/seeks",{board,modes:modes||[],side_pref:sidePref,rated:!!rated,target:target||null,game_type:gameType||"facet"});
   }
   async cancelSeek(id){return this._fetch(`/api/v1/seeks/${id}/cancel`,{});}
   async acceptSeek(id){

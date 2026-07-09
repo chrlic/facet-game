@@ -233,7 +233,8 @@ class Handler(BaseHTTPRequestHandler):
             sid = service.create_seek(
                 p, data.get("board", "classic"), data.get("modes", []),
                 data.get("side_pref", "random"), data.get("rated", False),
-                data.get("target"))
+                data.get("target"),
+                game_type=data.get("game_type", "facet"))
             return self._send(200, {"seek_id": sid})
         if (len(parts) == 3 and parts[0] == "seeks" and method == "POST"
                 and parts[2] in ("accept", "cancel")):
@@ -251,9 +252,13 @@ class Handler(BaseHTTPRequestHandler):
         # ---- games ----
         if path == "/games" and method == "POST":
             p = self._auth()
+            gt = data.get("game_type", "facet")
+            if gt not in service.GAME_TYPES:
+                raise ApiError(400, "unknown game type")
             gid = HUB.create_ai_game(
                 p, data.get("board", "classic"), data.get("modes", []),
-                data.get("difficulty", "normal"), data.get("human_side", 0))
+                data.get("difficulty", "normal"), data.get("human_side", 0),
+                game_type=gt)
             game, side = HUB.load_game(gid, p)
             return self._send(200, {"game_id": gid,
                                     **HUB.state_payload(game, side)})
@@ -293,6 +298,13 @@ class Handler(BaseHTTPRequestHandler):
                 with HUB.glock(gid):
                     game, side = HUB.load_game(gid, p)
                     if action == "move":
+                        if game.get("game_type") == "backbone":
+                            act = HUB.make_action(game, side,
+                                                  data.get("action"))
+                            game = storage.get_game(gid)
+                            return self._send(200, {
+                                "move": act,
+                                **HUB.state_payload(game, side)})
                         fr, to = data.get("from"), data.get("to")
                         mv, bumped = HUB.make_move(game, side, fr, to)
                         game = storage.get_game(gid)
@@ -338,7 +350,10 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/") and not parsed.path.startswith("/api/"):
             name = parsed.path.lstrip("/")
             ctypes = {".js": "application/javascript", ".css": "text/css",
-                      ".png": "image/png", ".svg": "image/svg+xml"}
+                      ".png": "image/png", ".svg": "image/svg+xml",
+                      ".html": "text/html; charset=utf-8",
+                      ".json": "application/json",
+                      ".webmanifest": "application/manifest+json"}
             ext = "." + name.rsplit(".", 1)[-1] if "." in name else ""
             ctype = ctypes.get(ext, "application/octet-stream")
             if (STATIC / name).exists():

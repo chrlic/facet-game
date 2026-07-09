@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0f1320" />
+<title>BACKBONE</title>
+<script src="backbone_engine.js"></script>
+<script src="adapter.js"></script>
+<script src="vue.global.prod.js"></script>
+<style>
+  :root{--bg:#0f1320;--panel:#171c2e;--ink:#e7ecf5;--muted:#8b95ad;
+        --p1:#5be0a8;--p2:#7aa2ff;--city:#caa12e;--hl:#ffd84d;--bad:#e07a6a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:1080px;margin:0 auto;padding:16px}
+  h1{font-weight:800;letter-spacing:3px;margin:0 0 2px;font-size:24px}
+  .sub{color:var(--muted);margin:0 0 12px;font-size:13px}
+  .layout{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+  .boardwrap{background:var(--panel);padding:10px;border-radius:14px;
+             box-shadow:0 10px 40px #0008}
+  .side{flex:1;min-width:280px;max-width:420px}
+  .card{background:var(--panel);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{background:#243049;color:var(--ink);border:1px solid #33415f;
+        padding:7px 11px;border-radius:9px;cursor:pointer;font-weight:600;font-size:13px}
+  button:hover{background:#2c3a58}
+  button.primary{background:var(--p1);color:#06281c;border-color:transparent}
+  button.tool{position:relative;padding:6px 9px}
+  .picon{vertical-align:-3px;color:currentColor}
+  button.tool.active{outline:2px solid var(--hl)}
+  button.tool:disabled{opacity:.4;cursor:default}
+  select{background:#243049;color:var(--ink);border:1px solid #33415f;
+        padding:6px;border-radius:8px}
+  .muted{color:var(--muted);font-size:13px;line-height:1.5}
+  .dlbtn{background:none;border:1px solid #33415f;color:var(--muted);font-size:12px;
+        padding:4px 10px;border-radius:6px;cursor:pointer}
+  .dlbtn:hover{background:#243049;color:var(--ink)}
+  svg .hex{stroke:#232b42;stroke-width:1;fill:#1b2136;cursor:default}
+  svg .hex.city{fill:#3a3323}
+  svg .hex.legal{fill:#24402f;cursor:pointer}
+  svg .hex.legal:hover{fill:#2d5540}
+  svg .hex.hackable{fill:#402424;cursor:pointer}
+  svg .hex.hackable:hover{fill:#553030}
+  svg .hex.sel{stroke:var(--hl);stroke-width:2.5}
+  svg text{pointer-events:none;user-select:none}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px}
+  .pv{background:#0c1020;border-radius:9px;padding:8px}
+  .pv b{font-size:18px}
+  .p1c{color:var(--p1)} .p2c{color:var(--p2)}
+  .win{font-size:18px;font-weight:800;margin-top:6px}
+  .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);
+        background:#c0392b;color:#fff;padding:10px 18px;border-radius:10px;
+        font-size:13px;font-weight:600;z-index:100;max-width:90vw;text-align:center}
+  .toast.info{background:#2d5fa6}
+  .rules{line-height:1.6;font-size:13px;color:var(--muted)}
+  .rules b{color:var(--ink)}
+  .listrow{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px}
+  .listrow .ldetail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .turnbadge{color:var(--p1);font-weight:700;white-space:nowrap}
+  .supply{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- Network-diagram style device icons, viewBox 0 0 24 24, currentColor -->
+    <symbol id="icon-router" viewBox="0 0 24 24">
+      <!-- classic "router" glyph: a ring with two arrows chasing each
+           other around it, suggesting traffic circulating -->
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="7.5"/>
+        <path d="M12 4.2 L14.8 6.3 L12.5 8.1"/>
+        <path d="M12 19.8 L9.2 17.7 L11.5 15.9"/>
+      </g>
+    </symbol>
+    <symbol id="icon-switch" viewBox="0 0 24 24">
+      <!-- classic "switch" glyph: a chassis box with two opposing arrows
+           crossing through it, suggesting bidirectional port switching -->
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="6.5" width="18" height="11" rx="1.4"/>
+        <path d="M6 10 H16.5"/>
+        <path d="M13.8 7.8 L16.5 10 L13.8 12.2"/>
+        <path d="M18 14 H7.5"/>
+        <path d="M10.2 11.8 L7.5 14 L10.2 16.2"/>
+      </g>
+    </symbol>
+    <symbol id="icon-ap" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+        <rect x="9" y="16.5" width="6" height="3.4" rx="1" fill="currentColor" stroke="none"/>
+        <path d="M8.4 14.6a5.2 5.2 0 0 1 7.2 0"/>
+        <path d="M5.6 11.4a9.4 9.4 0 0 1 12.8 0"/>
+        <circle cx="12" cy="17.8" r=".9" fill="#0000" stroke="none"/>
+      </g>
+    </symbol>
+    <symbol id="icon-firewall" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+        <rect x="2.5" y="4.5" width="19" height="15" rx="1.2"/>
+        <path d="M2.5 9.5h19M2.5 14.5h19M8.5 4.5v5M14.8 4.5v5M5.7 9.5v5M11.8 9.5v5M17.8 9.5v5M8.5 14.5v5M14.8 14.5v5"/>
+      </g>
+    </symbol>
+    <symbol id="icon-server" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+        <rect x="4" y="4" width="16" height="6.6" rx="1.1"/>
+        <rect x="4" y="13.4" width="16" height="6.6" rx="1.1"/>
+        <circle cx="7.1" cy="7.3" r=".9" fill="currentColor" stroke="none"/>
+        <circle cx="9.6" cy="7.3" r=".9" fill="currentColor" stroke="none"/>
+        <path d="M13.2 7.3h4.3"/>
+        <circle cx="7.1" cy="16.7" r=".9" fill="currentColor" stroke="none"/>
+        <circle cx="9.6" cy="16.7" r=".9" fill="currentColor" stroke="none"/>
+        <path d="M13.2 16.7h4.3"/>
+      </g>
+    </symbol>
+    <symbol id="icon-dc" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+        <rect x="3.2" y="10" width="4.6" height="10" rx="1"/>
+        <rect x="9.7" y="5" width="4.6" height="15" rx="1"/>
+        <rect x="16.2" y="10" width="4.6" height="10" rx="1"/>
+        <path d="M2.5 20.5h19"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+<div id="app" class="wrap">
+  <div class="toast" v-if="errorMsg">{{ errorMsg }}</div>
+  <div class="toast info" v-if="noticeMsg">{{ noticeMsg }}</div>
+  <h1>BACKBONE</h1>
+  <p class="sub">Build the network. Bring datacenters online. Connect the cities. First to {{ targetVp }} AI tokens wins.
+    <a href="./" style="color:var(--p1);margin-left:8px">← FACET</a>
+    <span v-if="adapterMode==='local'" style="opacity:.6">(offline mode)</span>
+    <span v-if="me && me.player" class="muted"> · playing as <b>{{ me.player.name }}</b></span>
+  </p>
+
+  <div class="layout">
+    <div class="boardwrap">
+      <svg :width="svgW" :height="svgH">
+        <g v-for="c in cells" :key="c.k">
+          <polygon :points="c.points" :class="hexClass(c)" @click="clickHex(c)"/>
+          <text v-if="c.isCity" :x="c.cx" :y="c.cy+4"
+                text-anchor="middle" font-size="13"
+                :fill="c.cityBy.length?'#e8c96a':'#8a7a4a'">⬢C</text>
+          <circle v-if="c.isCity && c.cityBy.includes(0)" :cx="c.cx-7" :cy="c.cy-9" r="2.6" fill="#5be0a8"/>
+          <circle v-if="c.isCity && c.cityBy.includes(1)" :cx="c.cx+7" :cy="c.cy-9" r="2.6" fill="#7aa2ff"/>
+          <text v-if="c.isCity && c.cityBy.includes(0)" :x="c.cx-7" :y="c.cy+12"
+                text-anchor="middle" font-size="9" font-weight="900" fill="#5be0a8">+1</text>
+          <text v-if="c.isCity && c.cityBy.includes(1)" :x="c.cx+7" :y="c.cy+12"
+                text-anchor="middle" font-size="9" font-weight="900" fill="#7aa2ff">+1</text>
+          <title v-if="c.isCity">{{ c.cityBy.length ? 'Connected to: '+c.cityBy.map(o=>nameOf(o)).join(' & ')+' (+1 AI token each)' : 'Not connected — build an adjacent Server' }}</title>
+          <text v-if="c.isStart" :x="c.cx" :y="c.cy-11" text-anchor="middle"
+                font-size="8" :fill="c.startOwner===0?'#5be0a8':'#7aa2ff'">START</text>
+        </g>
+        <g v-for="e in networkEdges" :key="e.k">
+          <line :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2"
+                :stroke="e.owner===0?'#5be0a8':'#7aa2ff'"
+                :stroke-width="e.jump?1.6:2.2"
+                :stroke-dasharray="e.jump?'2,3':''"
+                :stroke-opacity="e.jump?0.55:0.4"/>
+        </g>
+        <g v-for="c in cells" :key="'p'+c.k">
+          <g v-if="c.piece">
+            <circle :cx="c.cx" :cy="c.cy" r="13"
+                    :fill="c.piece.owner===0?'#194a35':'#1e2f5e'"
+                    :stroke="c.piece.owner===0?'#5be0a8':'#7aa2ff'"
+                    :stroke-width="c.fw?3:1.4"
+                    :stroke-dasharray="c.fw?'3,2':(c.disconnected?'2,2':'')"
+                    :opacity="c.disconnected?0.45:1"/>
+            <use :href="'#icon-'+c.piece.kind" :x="c.cx-8" :y="c.cy-8" width="16" height="16"
+                 :color="c.piece.owner===0?'#a9f4d3':'#c3d4ff'"
+                 :opacity="c.disconnected?0.6:1"/>
+            <circle v-if="c.piece.kind==='dc'" :cx="c.cx" :cy="c.cy" r="16"
+                    fill="none" :stroke="c.dcOnline?'#ffd84d':'#5a5a5a'"
+                    :stroke-width="c.dcOnline?2:1.2"
+                    :stroke-dasharray="c.dcOnline?'':'2,2'"
+                    :opacity="c.dcOnline?0.9:0.6"/>
+            <text v-if="c.piece.kind==='dc'&&c.dcOnline" :x="c.cx+11" :y="c.cy+13"
+                  text-anchor="middle" font-size="10" fill="#ffd84d" font-weight="900">+1</text>
+            <text v-if="c.piece.kind==='server'&&c.serverActive" :x="c.cx+11" :y="c.cy+13"
+                  text-anchor="middle" font-size="10" fill="#ffd84d" font-weight="900">+1</text>
+            <text v-if="c.disabled" :x="c.cx+10" :y="c.cy-8" text-anchor="middle"
+                  font-size="12" fill="#e07a6a" font-weight="900">✕</text>
+            <title v-if="c.disconnected">Cut off from the network — not scoring, not serving, not extending</title>
+            <title v-else-if="c.piece.kind==='dc'">{{ c.dcOnline ? 'Online — scoring 1 AI token' : 'Offline — needs 2 adjacent Routers and a Server in your network' }}</title>
+            <title v-else-if="c.piece.kind==='server'&&state.server_city[c.k]">{{ c.serverActive ? 'Connected — scoring 1 AI token for its city' : 'Its city is not currently connected' }}</title>
+          </g>
+        </g>
+      </svg>
+      <div class="row" style="margin-top:6px;font-size:11px;color:var(--muted);gap:12px" v-if="state">
+        <span><svg width="16" height="10"><line x1="1" y1="5" x2="15" y2="5" stroke="#8b95ad" stroke-width="2"/></svg> network link</span>
+        <span><svg width="16" height="10"><line x1="1" y1="5" x2="15" y2="5" stroke="#8b95ad" stroke-width="1.6" stroke-dasharray="2,3"/></svg> wireless jump</span>
+        <span style="opacity:.6">◌ faded = disconnected</span>
+        <span><span style="color:var(--hl);font-weight:900">+1</span> = scoring right now</span>
+        <span>⬢<span style="color:#5be0a8">●</span><span style="color:#7aa2ff">●</span> = city connected to P1/P2</span>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <b>{{ turnLabel }}</b>
+          <span class="muted" v-if="state && winner===null">action {{ 3-state.actions_left }} / 2 · turn {{ state.turn_no }}</span>
+        </div>
+        <div class="statgrid" style="margin-top:8px" v-if="state">
+          <div class="pv"><span class="p1c">{{ nameOf(0) }}</span><br>
+            <b class="p1c">{{ state.vp[0] }}</b> {{ tokLabel(state.vp[0]) }} · {{ state.bw[0] }} BW
+            <div class="muted" style="font-size:11px;margin-top:2px" :title="vpBreakdownTitle(0)">
+              🖥️{{ state.cities_connected[0].length }} cities · 🏭{{ onlineDcCount(0) }} online
+              <span v-if="dcLinked(0)" style="color:var(--hl)">· 🔗+2</span>
+            </div></div>
+          <div class="pv"><span class="p2c">{{ nameOf(1) }}</span><br>
+            <b class="p2c">{{ state.vp[1] }}</b> {{ tokLabel(state.vp[1]) }} · {{ state.bw[1] }} BW
+            <div class="muted" style="font-size:11px;margin-top:2px" :title="vpBreakdownTitle(1)">
+              🖥️{{ state.cities_connected[1].length }} cities · 🏭{{ onlineDcCount(1) }} online
+              <span v-if="dcLinked(1)" style="color:var(--hl)">· 🔗+2</span>
+            </div></div>
+        </div>
+        <div v-if="winner!==null" class="win">{{ winnerText }}</div>
+        <div v-if="incomingDraw" style="margin-top:8px">
+          <span class="muted">{{ opponentName }} offers a draw.</span>
+          <button @click="answerDraw('accept')">Accept</button>
+          <button @click="answerDraw('decline')">Decline</button>
+        </div>
+        <div class="row" style="margin-top:8px" v-if="winner===null && myTurn && !busy">
+          <button class="dlbtn" v-if="isPvp" @click="offerDraw">Offer draw</button>
+          <button class="dlbtn" v-if="isOnline && gameMeta" @click="resign">Resign</button>
+        </div>
+      </div>
+
+      <div class="card" v-if="!isPvp && aiExplainHistory.length">
+        <b style="font-size:13px">{{ opponentName }}'s last turn</b>
+        <div v-for="(e,i) in aiExplainHistory" :key="i" class="row"
+             style="margin:5px 0;font-size:13px;gap:7px;align-items:flex-start">
+          <span :style="{background:aimMeta(e.aim).color}"
+                style="flex:none;font-size:10px;font-weight:700;color:#e7ecf5;
+                       padding:2px 7px;border-radius:5px;margin-top:1px">{{ aimMeta(e.aim).label }}</span>
+          <span>{{ e.text }}</span>
+        </div>
+      </div>
+
+      <div class="card" v-if="winner===null && myTurn">
+        <div class="row">
+          <button v-for="t in tools" :key="t.id" class="tool"
+                  :class="{active:selectedTool===t.id}"
+                  :disabled="!toolEnabled(t.id)"
+                  :title="t.tip + (t.cost ? ` — ${t.cost} BW` : '')"
+                  @click="pickTool(t.id)">
+            <svg v-if="t.id!=='hack'&&t.id!=='reroute'" class="picon" viewBox="0 0 24 24" width="16" height="16"><use :href="'#icon-'+t.id"/></svg>
+            <span v-else>{{ t.label }}</span>
+            <span class="muted" v-if="t.cost"> {{t.cost}}</span>
+          </button>
+          <button class="tool" @click="doPass" title="Skip this action">Pass</button>
+        </div>
+        <div class="supply row" style="margin-top:6px;gap:10px" v-if="state">
+          <span>supply:</span>
+          <span v-for="k in ['router','switch','ap','firewall','server','dc']" :key="k" class="row" style="gap:2px">
+            <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use :href="'#icon-'+k"/></svg>{{ sup(k) }}
+          </span>
+        </div>
+        <div class="muted" style="margin-top:6px">{{ toolHint }}</div>
+        <div v-if="cityChoices.length" class="row" style="margin-top:6px">
+          <span class="muted">Serve which city?</span>
+          <button v-for="c in cityChoices" :key="c.join()"
+                  @click="buildServer(c)">City ({{c[0]}},{{c[1]}})</button>
+        </div>
+      </div>
+
+      <div class="card" v-if="isOnline && me && me.player">
+        <div class="row" style="justify-content:space-between">
+          <span style="font-size:14px">
+            <b>{{ me.player.name }}</b>
+            <span class="muted" v-if="me.player.is_guest">(guest — casual games only)</span>
+            <span class="muted" v-else>
+              · {{ me.player.rating }}
+              <b v-if="me.player.rank!=='Unranked'" style="color:var(--hl)">{{ me.player.rank }}</b>
+              <span v-else>({{ me.player.rated_games }}/10 placement)</span>
+            </span>
+          </span>
+          <span class="row" style="gap:6px">
+            <a v-if="me.is_admin" href="admin.html" class="dlbtn"
+               style="text-decoration:none">Admin</a>
+            <button class="dlbtn" v-if="me.player.is_guest" @click="authForm=authForm==='claim'?null:'claim'">Claim account</button>
+            <button class="dlbtn" v-if="me.player.is_guest" @click="authForm=authForm==='login'?null:'login'">Login</button>
+            <button class="dlbtn" v-if="!me.player.is_guest" @click="authForm=authForm==='rename'?null:'rename';authName=''" title="Change your name">✎</button>
+            <button class="dlbtn" @click="toggleLeaderboard">Ranks</button>
+            <button class="dlbtn" v-if="!me.player.is_guest" @click="doLogout">Logout</button>
+          </span>
+        </div>
+        <div v-if="authForm" style="margin-top:8px">
+          <div class="row" style="gap:6px">
+            <input v-model="authName" :placeholder="authForm==='rename'?'new name':'name'"
+                   @keyup.enter="authForm==='rename'&&submitAuth()"
+                   style="flex:1;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
+            <input v-if="authForm!=='rename'" v-model="authPass" type="password" placeholder="password" @keyup.enter="submitAuth"
+                   style="flex:1;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
+            <button @click="submitAuth" :disabled="authBusy">{{ authForm==='login'?'Login':authForm==='claim'?'Claim':authForm==='rename'?'Rename':'Register' }}</button>
+          </div>
+          <div class="muted" style="margin-top:4px" v-if="authForm==='login'">
+            No account yet? <a href="#" @click.prevent="authForm='register'" style="color:var(--p1)">Register</a>
+          </div>
+        </div>
+        <div v-if="lbOpen" style="margin-top:8px">
+          <div v-if="!lbRows.length" class="muted">No rated games played yet.</div>
+          <div v-for="row in lbRows" :key="row.name" class="row"
+               style="justify-content:space-between;font-size:13px;margin:2px 0">
+            <span><span class="muted">{{ row.pos }}.</span> <b>{{ row.name }}</b>
+              <span class="muted" v-if="row.rank!=='Unranked'">· {{ row.rank }}</span>
+              <span class="muted" v-else>· placement</span></span>
+            <span>{{ row.rating }} <span class="muted">({{ row.rated_games }})</span></span>
+          </div>
+        </div>
+        <div v-if="recoveryCode" style="margin-top:8px;padding:8px;background:#0c1020;border-radius:8px;font-size:13px">
+          Your recovery code (store it — it is shown only once):
+          <b style="color:var(--hl)">{{ recoveryCode }}</b>
+          <button class="dlbtn" style="margin-left:8px" @click="recoveryCode=null">Got it</button>
+        </div>
+      </div>
+
+      <div class="card" v-if="isOnline">
+        <div class="row">
+          <label class="muted">Difficulty</label>
+          <select v-model="difficulty">
+            <option value="easy">Easy</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard (slow)</option>
+          </select>
+          <label class="muted">Play as</label>
+          <select v-model="sideChoice">
+            <option value="0">Player 1 (first)</option>
+            <option value="1">Player 2 (+2 BW)</option>
+            <option value="random">Random</option>
+          </select>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button class="primary" @click="newGame">New AI game</button>
+          <button class="dlbtn" @click="postSeek">Offer to players</button>
+          <label v-if="me && me.player && !me.player.is_guest"
+                 style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" v-model="seekRated"> Rated
+          </label>
+          <button class="dlbtn" @click="showRules=!showRules">?</button>
+        </div>
+      </div>
+      <div class="card" v-else>
+        <div class="row">
+          <select v-model="difficulty">
+            <option value="easy">Easy</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard (slow)</option>
+          </select>
+          <select v-model="sideChoice">
+            <option value="0">Player 1</option>
+            <option value="1">Player 2</option>
+            <option value="random">Random</option>
+          </select>
+          <button class="primary" @click="newGame">New AI game</button>
+          <button class="dlbtn" @click="showRules=!showRules">?</button>
+        </div>
+      </div>
+
+      <div class="card" v-if="isOnline && (bbSeeks.length || bbGames.length)">
+        <div v-if="bbGames.length">
+          <b style="font-size:13px">My games</b>
+          <div v-for="g in bbGames" :key="g.id" class="listrow">
+            <a href="#" @click.prevent="openGame(g.id)"
+               :style="{color: g.id===id ? 'var(--hl)' : 'var(--p1)'}">vs {{ g.opponent }}</a>
+            <span class="ldetail muted">{{ g.ply }} actions · {{ ago(g.last_move_at) }}</span>
+            <b v-if="g.your_turn" class="turnbadge">your turn</b>
+            <span v-else class="muted">waiting</span>
+            <button class="dlbtn" @click="endGame(g)">✕</button>
+          </div>
+        </div>
+        <div v-if="bbSeeks.length" :style="{marginTop: bbGames.length?'8px':'0'}">
+          <b style="font-size:13px">Open games</b>
+          <div v-for="s in bbSeeks" :key="s.id" class="listrow">
+            <span>{{ s.mine ? 'Your offer' : s.player }}</span>
+            <span class="ldetail muted">
+              {{ s.mine ? 'you play '+(s.side_pref==='white'?'P1':s.side_pref==='black'?'P2':'random')
+                        : (s.you_play==='random'?'random sides':"you'd play "+(s.you_play==='white'?'P1':'P2')) }}
+              <b v-if="s.rated" style="color:var(--hl)">RATED</b></span>
+            <button class="dlbtn" v-if="s.mine" @click="dropSeek(s.id)">Cancel</button>
+            <button class="dlbtn" v-else @click="takeSeek(s.id)">Play</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card rules" v-show="showRules">
+        <p><b>Income:</b> 3 BW + 1 per connected city each turn (max 10 saved).
+           Then take <b>2 actions</b>: Build, Hack (1 BW, at most once per turn), or Reroute (free).</p>
+        <p><b>Pieces:</b><br>
+           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-router"/></svg> <b>Router</b> 2 — expands territory, datacenters need 2 adjacent.<br>
+           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-switch"/></svg> <b>Switch</b> 1 — glue, needs 2 adjacent friendly pieces.<br>
+           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-ap"/></svg> <b>Wireless AP</b> 3 — jumps 1 hex.<br>
+           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-firewall"/></svg> <b>Firewall</b> 2 — placed on a piece, absorbs one hack.<br>
+           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-server"/></svg> <b>Server</b> 3 — serves 1 adjacent city.<br>
+           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-dc"/></svg> <b>Datacenter</b> 6 — 1 AI token while online.</p>
+        <p><b>Score:</b> 1 AI token per online DC, 1 per connected city,
+           +2 once for two DCs linked through your network.
+           Hacked pieces stop working until the end of your next turn.
+           First to {{ targetVp }} AI tokens at the end of their turn triggers the
+           <b>final turn</b>: your opponent plays one more turn, then the
+           higher score wins (ties go to connected cities, then a draw).</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+  data(){return{
+    adapter:null, adapterMode:"detecting...",
+    me:null, id:null, state:null, gameMeta:null, gameV:-1, _pollSeq:0,
+    humanSide:0, sideChoice:"0", difficulty:"normal",
+    selectedTool:null, rerouteFrom:null, pendingServer:null,
+    busy:false, errorMsg:null, _errT:null, noticeMsg:null, _notT:null,
+    showRules:false, seekRated:false,
+    bbSeeks:[], bbGames:[], _lobbyTimer:null, hadSeek:false, _seen:{},
+    aiExplainHistory:[],
+    authForm:null, authName:'', authPass:'', authBusy:false,
+    recoveryCode:null, lbOpen:false, lbRows:[],
+    tools:[
+      {id:"router", label:"R",  cost:2, tip:"Router — expand territory"},
+      {id:"switch", label:"S",  cost:1, tip:"Switch — needs 2 adjacent pieces"},
+      {id:"ap",     label:"W",  cost:3, tip:"Wireless AP — jumps 1 hex"},
+      {id:"firewall",label:"FW",cost:2, tip:"Firewall — protect a piece"},
+      {id:"server", label:"V",  cost:3, tip:"Server — serve an adjacent city"},
+      {id:"dc",     label:"DC", cost:6, tip:"Datacenter — 1 AI token online"},
+      {id:"hack",   label:"⚡Hack",cost:1, tip:"Disable an adjacent enemy piece (once per turn)"},
+      {id:"reroute",label:"⇄",  cost:0, tip:"Move a Switch or AP (free)"},
+    ],
+  }},
+  computed:{
+    isOnline(){ return !!(this.adapter && this.adapter.online); },
+    isPvp(){ return !!(this.gameMeta && this.gameMeta.type==="pvp"); },
+    targetVp(){ return new BackboneBoard().targetVp; },
+    winner(){
+      if(this.gameMeta && this.gameMeta.status==="finished"){
+        const w=this.gameMeta.winner;
+        return w==="draw"?"draw":Number(w);
+      }
+      return this.state ? this.state.winner : null;
+    },
+    myTurn(){ return this.state && this.state.to_move===this.humanSide && this.winner===null; },
+    opponentName(){
+      if(!this.gameMeta) return "AI";
+      return this.humanSide===0 ? this.gameMeta.black : this.gameMeta.white;
+    },
+    incomingDraw(){
+      return this.isPvp && this.gameMeta.status==="active"
+        && this.gameMeta.draw_offer_by!==null
+        && this.gameMeta.draw_offer_by!==this.humanSide;
+    },
+    turnLabel(){
+      if(this.winner!==null) return "Game over";
+      return this.myTurn ? "Your move" : `${this.opponentName} is playing…`;
+    },
+    winnerText(){
+      const w=this.winner;
+      if(w==="draw") return "Draw.";
+      const wt=this.gameMeta&&this.gameMeta.win_type?` by ${this.gameMeta.win_type}`:"";
+      if(w===this.humanSide) return `You win${wt}! 🏆`;
+      if(w!==null) return `${this.opponentName} wins${wt}.`;
+      return "";
+    },
+    hexSize(){ return 30; },
+    svgW(){ return Math.ceil(Math.sqrt(3)*this.hexSize*(9+0.5)+20); },
+    svgH(){ return Math.ceil(this.hexSize*(1.5*8+2)+20); },
+    cells(){
+      if(!this.state) return [];
+      const out=[];
+      const legal=this.legalTargets;
+      const nets=this.netSets;
+      for(let y=8;y>=0;y--) for(let x=0;x<9;x++){
+        const k=x+","+y;
+        const [cx,cy]=this.hexCenter(x,y);
+        const s=this.hexSize;
+        const pts=[];
+        for(let i=0;i<6;i++){
+          const a=Math.PI/180*(60*i-30);
+          pts.push((cx+s*Math.cos(a)).toFixed(1)+","+(cy+s*Math.sin(a)).toFixed(1));
+        }
+        const piece=this.state.pieces[k]||null;
+        const isCity=this.state.cities.some(c=>c[0]===x&&c[1]===y);
+        let cityBy=[];
+        if(isCity){
+          cityBy=[0,1].filter(o=>this.state.cities_connected[o].some(c=>c[0]===x&&c[1]===y));
+        }
+        let dcOnline=null, serverActive=null;
+        if(piece && piece.kind==="dc"){
+          dcOnline = !!(this.state.dc_online && this.state.dc_online[k]);
+        }
+        if(piece && piece.kind==="server"){
+          const city=this.state.server_city[k];
+          serverActive = !!city && this.state.cities_connected[piece.owner]
+            .some(c=>c[0]===city[0]&&c[1]===city[1]);
+        }
+        out.push({k,x,y,cx,cy,points:pts.join(" "),
+          isCity, cityBy,
+          isStart:(x===0&&y===0)||(x===8&&y===8),
+          startOwner:(x===0&&y===0)?0:1,
+          piece,
+          fw:this.state.firewalls.includes(k),
+          disabled:this.state.disabled.includes(k),
+          disconnected: piece ? !nets[piece.owner].has(k) : false,
+          dcOnline, serverActive,
+          legal:legal.has(k),
+          hack:this.selectedTool==="hack"&&legal.has(k),
+          sel:this.rerouteFrom===k});
+      }
+      return out;
+    },
+    netSets(){
+      if(!this.state || !this.state.network) return [new Set(), new Set()];
+      return [
+        new Set(this.state.network[0].map(([x,y])=>x+","+y)),
+        new Set(this.state.network[1].map(([x,y])=>x+","+y)),
+      ];
+    },
+    networkEdges(){
+      if(!this.state || !this.state.network) return [];
+      const edges=[]; const seen=new Set();
+      for(const owner of [0,1]){
+        const netArr=this.state.network[owner];
+        const netSet=this.netSets[owner];
+        for(const [x,y] of netArr){
+          const hk=x+","+y;
+          const piece=this.state.pieces[hk];
+          if(!piece) continue;
+          for(const [nx,ny] of bbNeighbors(x,y)){
+            if(!bbIn(nx,ny)) continue;
+            const nk=nx+","+ny;
+            if(!netSet.has(nk)) continue;
+            const np=this.state.pieces[nk];
+            if(!np||np.owner!==owner) continue;
+            const key=(hk<nk?hk+"|"+nk:nk+"|"+hk);
+            if(seen.has(key)) continue;
+            seen.add(key);
+            const [x1,y1]=this.hexCenter(x,y), [x2,y2]=this.hexCenter(nx,ny);
+            edges.push({k:key,x1,y1,x2,y2,owner,jump:false});
+          }
+          if(piece.kind==="ap"){
+            for(const [,far] of bbJumpTargets(x,y)){
+              const fk=far[0]+","+far[1];
+              if(!netSet.has(fk)) continue;
+              const fp=this.state.pieces[fk];
+              if(!fp||fp.owner!==owner) continue;
+              const key=(hk<fk?hk+"|"+fk+"j":fk+"|"+hk+"j");
+              if(seen.has(key)) continue;
+              seen.add(key);
+              const [x1,y1]=this.hexCenter(x,y), [x2,y2]=this.hexCenter(far[0],far[1]);
+              edges.push({k:key,x1,y1,x2,y2,owner,jump:true});
+            }
+          }
+        }
+      }
+      return edges;
+    },
+    legalTargets(){
+      const set=new Set();
+      if(!this.state||!this.myTurn||!this.selectedTool) return set;
+      for(const a of this.state.legal){
+        if(this.selectedTool==="hack"&&a.a==="hack") set.add(a.x+","+a.y);
+        else if(this.selectedTool==="reroute"&&a.a==="reroute"){
+          if(!this.rerouteFrom) set.add(a.fx+","+a.fy);
+          else if(a.fx+","+a.fy===this.rerouteFrom) set.add(a.tx+","+a.ty);
+        }
+        else if(a.a==="build"&&a.piece===this.selectedTool) set.add(a.x+","+a.y);
+      }
+      return set;
+    },
+    cityChoices(){
+      if(!this.pendingServer||!this.state) return [];
+      const [px,py]=this.pendingServer;
+      const out=[];
+      for(const a of this.state.legal)
+        if(a.a==="build"&&a.piece==="server"&&a.x===px&&a.y===py&&a.city)
+          out.push(a.city);
+      return out;
+    },
+    toolHint(){
+      if(!this.selectedTool) return "Pick a tool, then a highlighted hex. You have 2 actions per turn.";
+      if(this.selectedTool==="hack") return "Click an enemy piece adjacent to your network (1 BW, once per turn). Firewalls absorb the hack.";
+      if(this.selectedTool==="reroute")
+        return this.rerouteFrom ? "Now click the destination hex."
+                                : "Click one of your Switches or Wireless APs to move.";
+      if(this.selectedTool==="firewall") return "Click one of your pieces to protect it.";
+      return "Click a highlighted hex adjacent to your network.";
+    },
+  },
+  methods:{
+    hexCenter(x,y){
+      const s=this.hexSize, w=Math.sqrt(3)*s;
+      const cx=10+w*(x+(y%2?0.5:0))+w/2;
+      const cy=10+1.5*s*(8-y)+s;
+      return [cx,cy];
+    },
+    sup(k){ return this.state ? this.state.supply[this.humanSide][k] : 0; },
+    tokLabel(n){ return n===1 ? 'AI token' : 'AI tokens'; },
+    dcLinked(owner){
+      if(!this.state || !this.state.network) return false;
+      const net=this.netSets[owner];
+      let n=0;
+      for(const k in this.state.pieces){
+        const p=this.state.pieces[k];
+        if(p.owner===owner && p.kind==="dc" && net.has(k)) n++;
+      }
+      return n>=2;
+    },
+    onlineDcCount(owner){
+      if(!this.state || !this.state.dc_online) return 0;
+      let n=0;
+      for(const k in this.state.pieces){
+        const p=this.state.pieces[k];
+        if(p.owner===owner && p.kind==="dc" && this.state.dc_online[k]) n++;
+      }
+      return n;
+    },
+    vpBreakdownTitle(owner){
+      const cities=this.state.cities_connected[owner].length;
+      const dcs=this.onlineDcCount(owner);
+      const bonus=this.dcLinked(owner)?2:0;
+      const total=cities+dcs+bonus;
+      return `${cities} connected cit${cities===1?'y':'ies'} (+${cities}) `
+        +`+ ${dcs} online datacenter${dcs===1?'':'s'} (+${dcs})`
+        +(bonus?` + datacenter link bonus (+2)`:'')
+        +` = ${total} ${this.tokLabel(total)}`;
+    },
+    nameOf(side){
+      if(!this.gameMeta) return side===this.humanSide?"You":"AI";
+      const n=side===0?this.gameMeta.white:this.gameMeta.black;
+      return n==="you"||side===this.humanSide?"You":n;
+    },
+    hexClass(c){
+      const cls=["hex"];
+      if(c.isCity) cls.push("city");
+      if(c.hack) cls.push("hackable");
+      else if(c.legal) cls.push("legal");
+      if(c.sel) cls.push("sel");
+      return cls;
+    },
+    toolEnabled(t){
+      if(!this.state||!this.myTurn) return false;
+      if(t==="hack") return this.state.legal.some(a=>a.a==="hack");
+      if(t==="reroute") return this.state.legal.some(a=>a.a==="reroute");
+      return this.state.legal.some(a=>a.a==="build"&&a.piece===t);
+    },
+    pickTool(t){
+      this.selectedTool=this.selectedTool===t?null:t;
+      this.rerouteFrom=null; this.pendingServer=null;
+    },
+    showError(m){ this.errorMsg=m; clearTimeout(this._errT);
+      this._errT=setTimeout(()=>this.errorMsg=null,5000); },
+    showNotice(m){ this.noticeMsg=m; clearTimeout(this._notT);
+      this._notT=setTimeout(()=>this.noticeMsg=null,4000); },
+    async _call(fn){
+      try{ const r=await fn(); if(r&&r.error)this.showError(r.error); return r; }
+      catch(e){ this.showError(e.message); return {error:e.message}; }
+    },
+    applyGame(r){
+      if(r.meta){
+        this.gameMeta=r.meta;
+        if(r.meta.your_side===0||r.meta.your_side===1) this.humanSide=r.meta.your_side;
+      }
+      if(r.v!==undefined) this.gameV=r.v;
+      if(r.state) this.state=r.state;
+      const mg=this.bbGames.find(x=>x.id===this.id);
+      if(mg&&this.state){
+        mg.your_turn=this.state.winner===null&&this.state.to_move===this.humanSide;
+        if(this.gameMeta) mg.ply=this.gameMeta.ply;
+      }
+    },
+    _resetUi(){
+      this.selectedTool=null; this.rerouteFrom=null; this.pendingServer=null;
+      this.gameMeta=null; this.gameV=-1; this._pollSeq++;
+      this.errorMsg=null; this.noticeMsg=null; this.aiExplainHistory=[];
+    },
+    async newGame(){
+      this.busy=true; this._resetUi();
+      const side=this.sideChoice==="random"?(Math.random()<0.5?0:1):Number(this.sideChoice);
+      const r=await this._call(()=>this.adapter.newGameTyped("backbone",this.difficulty,side));
+      if(r.error){ this.busy=false; return; }
+      this.id=r.id; this.humanSide=(r.human_side===1)?1:0;
+      this.applyGame(r);
+      this.busy=false;
+      this.refreshLobby();
+      if(this.state.to_move!==this.humanSide) await this.aiLoop();
+    },
+    async openGame(id){
+      this.busy=true; this._resetUi();
+      const r=await this._call(()=>this.adapter.state(id));
+      if(r.error){ this.busy=false; return; }
+      this.id=id; this.applyGame(r); this._seen[id]=true;
+      this.busy=false;
+      if(this.isPvp && this.gameMeta.status==="active") this.pvpPoll();
+      else if(this.gameMeta && this.gameMeta.type==="ai"
+              && this.state.winner===null
+              && this.state.to_move!==this.humanSide) await this.aiLoop();
+    },
+    async doAction(action){
+      if(!this.myTurn||this.busy) return;
+      this.busy=true;
+      const r=await this._call(()=>this.adapter.moveAction(this.id,action));
+      this.busy=false;
+      if(r.error) return;
+      this.applyGame(r);
+      this.selectedTool=null; this.rerouteFrom=null; this.pendingServer=null;
+      if(this.winner!==null){ this.refreshLobby(); return; }
+      if(!this.isPvp && this.state.to_move!==this.humanSide) await this.aiLoop();
+    },
+    async aiLoop(){
+      const gid=this.id, seq=this._pollSeq;
+      this.aiExplainHistory=[];
+      while(this.id===gid && this._pollSeq===seq && this.state
+            && this.state.winner===null
+            && this.state.to_move!==this.humanSide){
+        const r=await this._call(()=>this.adapter.aiMove(gid));
+        if(this.id!==gid||this._pollSeq!==seq) return;
+        if(r.error) return;
+        if(r.info && r.info.explain) this.aiExplainHistory.push(r.info.explain);
+        this.applyGame(r);
+      }
+      if(this.winner!==null) this.refreshLobby();
+    },
+    aimMeta(aim){
+      return {
+        expand:{label:"Expand", color:"#2d5fa6"},
+        score:{label:"Score", color:"#8a6d1f"},
+        defend:{label:"Defend", color:"#2f6b4f"},
+        disrupt:{label:"Disrupt", color:"#8a3b32"},
+        consolidate:{label:"Consolidate", color:"#3a3f55"},
+        wait:{label:"Wait", color:"#33415f"},
+      }[aim] || {label:"Move", color:"#33415f"};
+    },
+    async pvpPoll(){
+      const gid=this.id, seq=++this._pollSeq;
+      while(this.id===gid && this._pollSeq===seq
+            && this.isPvp && this.gameMeta.status==="active"){
+        let r=null;
+        try{ r=await this.adapter.state(gid,this.gameV,true); }catch(e){}
+        if(this.id!==gid||this._pollSeq!==seq) return;
+        if(!r||r.error){ await new Promise(res=>setTimeout(res,3000)); continue; }
+        this.applyGame(r);
+        if(this.gameMeta.status!=="active"){ this.refreshLobby(); return; }
+      }
+    },
+    clickHex(c){
+      if(!this.myTurn||!this.selectedTool) return;
+      const t=this.selectedTool;
+      if(t==="reroute"){
+        if(!this.rerouteFrom){
+          if(this.legalTargets.has(c.k)) this.rerouteFrom=c.k;
+          return;
+        }
+        if(this.legalTargets.has(c.k)){
+          const [fx,fy]=this.rerouteFrom.split(",").map(Number);
+          this.doAction({a:"reroute",fx,fy,tx:c.x,ty:c.y});
+        }else this.rerouteFrom=null;
+        return;
+      }
+      if(!this.legalTargets.has(c.k)) return;
+      if(t==="hack"){ this.doAction({a:"hack",x:c.x,y:c.y}); return; }
+      if(t==="server"){
+        const opts=this.state.legal.filter(a=>a.a==="build"&&a.piece==="server"
+                                            &&a.x===c.x&&a.y===c.y);
+        if(opts.length===1){ this.doAction(opts[0]); return; }
+        this.pendingServer=[c.x,c.y];  // multiple adjacent cities: choose
+        return;
+      }
+      this.doAction({a:"build",piece:t,x:c.x,y:c.y});
+    },
+    buildServer(city){
+      const [x,y]=this.pendingServer;
+      this.pendingServer=null;
+      this.doAction({a:"build",piece:"server",x,y,city});
+    },
+    doPass(){ this.doAction({a:"pass"}); },
+    async offerDraw(){
+      const r=await this._call(()=>this.adapter.drawAction(this.id,"offer"));
+      if(!r.error) this.applyGame(r);
+    },
+    async answerDraw(action){
+      const r=await this._call(()=>this.adapter.drawAction(this.id,action));
+      if(!r.error) this.applyGame(r);
+    },
+    async resign(){
+      if(!confirm("Resign this game?")) return;
+      const r=await this._call(()=>this.adapter.resign(this.id));
+      if(r.error) return;
+      this.applyGame(r); this.refreshLobby();
+    },
+    async endGame(g){
+      let r=await this._call(()=>this.adapter.abort(g.id));
+      if(r.error && g.type==="pvp"){
+        if(!confirm(`Resign the game against ${g.opponent}?`)) return;
+        this.errorMsg=null;
+        r=await this._call(()=>this.adapter.resign(g.id));
+      }
+      if(r.error) return;
+      await this.refreshLobby();
+      if(g.id===this.id){ this._pollSeq++; this.newGame(); }
+    },
+    async submitAuth(){
+      if(this.authBusy) return;
+      this.authBusy=true;
+      const name=this.authName.trim(), pass=this.authPass;
+      let r;
+      if(this.authForm==='login') r=await this.adapter.login(name,pass);
+      else if(this.authForm==='register') r=await this.adapter.register(name,pass);
+      else if(this.authForm==='rename') r=await this.adapter.rename(name);
+      else r=await this.adapter.claim(name,pass);
+      this.authBusy=false;
+      if(r.error){ this.showError(r.error); return; }
+      if(r.recovery_code) this.recoveryCode=r.recovery_code;
+      this.authForm=null; this.authName=''; this.authPass='';
+      this.me=await this.adapter.me();
+      this.refreshLobby();
+    },
+    async doLogout(){
+      await this.adapter.logout();
+      this.me=await this.adapter.ensureAuth();
+      this._resetUi(); this.id=null; this.state=null;
+      this.newGame();
+    },
+    async toggleLeaderboard(){
+      this.lbOpen=!this.lbOpen;
+      if(this.lbOpen){
+        const r=await this.adapter.leaderboard();
+        if(r.leaderboard) this.lbRows=r.leaderboard;
+      }
+    },
+    async refreshLobby(){
+      if(!this.isOnline||!this.me) return;
+      try{
+        const [seeks,games,me]=await Promise.all(
+          [this.adapter.getSeeks(),this.adapter.myGames(),this.adapter.me()]);
+        if(me&&me.player) this.me=me;
+        if(seeks.seeks) this.bbSeeks=seeks.seeks.filter(s=>s.game_type==="backbone");
+        if(games.games){
+          this.bbGames=games.games.filter(g=>g.game_type==="backbone");
+          const inPvp=this.isPvp&&this.gameMeta&&this.gameMeta.status==="active";
+          if(this.hadSeek && !this.bbSeeks.some(s=>s.mine) && !inPvp){
+            const fresh=this.bbGames.find(g=>g.type==="pvp"&&!this._seen[g.id]);
+            if(fresh){ this.hadSeek=false; this.openGame(fresh.id); }
+          }
+          for(const g of this.bbGames) if(g.id===this.id) this._seen[g.id]=true;
+        }
+      }catch(e){}
+    },
+    async postSeek(){
+      const pref=this.sideChoice==="0"?"white":this.sideChoice==="1"?"black":"random";
+      const r=await this._call(()=>this.adapter.createSeek(
+        "standard",[],pref,this.seekRated,null,"backbone"));
+      if(r.error) return;
+      this.hadSeek=true;
+      this.showNotice("Game offered — starts automatically when someone accepts.");
+      this.refreshLobby();
+    },
+    async takeSeek(id){
+      const r=await this._call(()=>this.adapter.acceptSeek(id));
+      if(r.error){ this.refreshLobby(); return; }
+      this.hadSeek=false; this._resetUi();
+      this.id=r.id; this.applyGame(r); this._seen[r.id]=true;
+      this.refreshLobby();
+      if(this.gameMeta.status==="active") this.pvpPoll();
+    },
+    async dropSeek(id){
+      await this._call(()=>this.adapter.cancelSeek(id));
+      this.hadSeek=false; this.refreshLobby();
+    },
+    ago(ts){
+      if(!ts) return "";
+      const s=(Date.now()-new Date(ts).getTime())/1000;
+      if(s<90) return "just now";
+      if(s<3600) return Math.round(s/60)+"m ago";
+      if(s<86400) return Math.round(s/3600)+"h ago";
+      return Math.round(s/86400)+"d ago";
+    },
+  },
+  async mounted(){
+    let server=null;
+    try{
+      const r=await fetch("/api/v1/boards",{signal:AbortSignal.timeout(2000)});
+      if(r.ok) server=new ServerAdapter();
+    }catch(e){}
+    this.adapter=server||new BackboneLocalAdapter();
+    this.adapterMode=this.adapter.mode;
+    if(this.isOnline){
+      this.me=await this.adapter.ensureAuth();
+      if(this.me&&this.me.error){ this.showError(this.me.error); this.me=null; }
+      this._lobbyTimer=setInterval(()=>this.refreshLobby(),5000);
+      await this.refreshLobby();
+      const resume=this.bbGames.find(g=>g.your_turn)||this.bbGames[0];
+      if(resume){ this.openGame(resume.id); return; }
+    }
+    this.newGame();
+  }
+}).mount("#app");
+</script>
+</body>
+</html>

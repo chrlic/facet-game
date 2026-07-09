@@ -13,9 +13,12 @@ import threading
 import time
 
 import storage
+import backbone_engine
 from facet_engine import (BOARDS, CLASSIC_BOARDS, DECAY_BOARDS, FOG_BOARDS,
                           MOMENTUM_BOARDS, make_board, ai_move,
                           ai_evaluate_draw, ai_wants_draw, resolve_fog_move)
+
+GAME_TYPES = ("facet", "backbone")
 
 DIFF = {  # difficulty -> (time_budget_seconds, max_depth)
     "easy":   (0.25, 2),
@@ -379,9 +382,14 @@ class GameHub:
             b = self.boards.get(gid)
         if b is not None:
             return b
-        b = make_board(game["board"], modes=set(game["modes"]))
-        for m in storage.get_moves(gid):
-            b.apply(((m["fx"], m["fy"]), (m["tx"], m["ty"])))
+        if game.get("game_type") == "backbone":
+            b = backbone_engine.Board()
+            for m in storage.get_moves(gid):
+                b.apply(json.loads(m["data"]))
+        else:
+            b = make_board(game["board"], modes=set(game["modes"]))
+            for m in storage.get_moves(gid):
+                b.apply(((m["fx"], m["fy"]), (m["tx"], m["ty"])))
         with self.lock:
             self.boards[gid] = b
         return b
@@ -415,6 +423,7 @@ class GameHub:
     def meta(self, game, side, board):
         return {
             "id": game["id"], "board": game["board"], "modes": game["modes"],
+            "game_type": game.get("game_type", "facet"),
             "type": "ai" if self.is_ai_game(game) else "pvp",
             "difficulty": game["ai_difficulty"],
             "white": game.get("white_name") or ("AI" if game["white_id"] is None else "?"),
@@ -439,7 +448,12 @@ class GameHub:
     def state_payload(self, game, side, draw_agreed=False):
         game = self._names(game)
         board = self.board_for(game)
-        st = serialize(board, draw_agreed=draw_agreed, viewer=side)
+        if game.get("game_type") == "backbone":
+            st = backbone_engine.serialize(board)
+            if draw_agreed:
+                st["winner"] = "draw"
+        else:
+            st = serialize(board, draw_agreed=draw_agreed, viewer=side)
         if game["status"] == "finished":
             # resign/forfeit/agreement aren't visible on the board itself
             st["winner"] = ("draw" if game["winner"] == "draw"
@@ -457,20 +471,31 @@ class GameHub:
         return {"state": st, "meta": meta, "v": self.version(game["id"])}
 
     # -- creation --
-    def create_ai_game(self, player, board_id, modes, difficulty, human_side):
-        modes = validate_setup(board_id, modes)
-        if difficulty not in DIFF:
-            difficulty = "normal"
+    def create_ai_game(self, player, board_id, modes, difficulty, human_side,
+                       game_type="facet"):
+        if game_type == "backbone":
+            board_id, modes = "standard", set()
+            if difficulty not in backbone_engine.DIFF:
+                difficulty = "normal"
+        else:
+            modes = validate_setup(board_id, modes)
+            if difficulty not in DIFF:
+                difficulty = "normal"
         human_side = 1 if human_side == 1 else 0
         white = player["id"] if human_side == 0 else None
         black = player["id"] if human_side == 1 else None
         gid = storage.create_game(board_id, modes, white, black,
                                   ai_difficulty=difficulty,
-                                  move_allowance_s=MOVE_ALLOWANCE_S)
+                                  move_allowance_s=MOVE_ALLOWANCE_S,
+                                  game_type=game_type)
         return gid
 
     def create_pvp_game(self, seek, accepter):
-        modes = validate_setup(seek["board"], seek["modes"])
+        game_type = seek.get("game_type", "facet")
+        if game_type == "backbone":
+            modes = set()
+        else:
+            modes = validate_setup(seek["board"], seek["modes"])
         seeker_id = seek["player_id"]
         pref = seek["side_pref"]
         if pref == "white":
@@ -490,10 +515,57 @@ class GameHub:
         ids[seeker_side ^ 1] = accepter["id"]
         gid = storage.create_game(seek["board"], modes, ids[0], ids[1],
                                   rated=seek["rated"],
-                                  move_allowance_s=MOVE_ALLOWANCE_S)
+                                  move_allowance_s=MOVE_ALLOWANCE_S,
+                                  game_type=game_type)
         return gid
 
     # -- play --
+    def make_action(self, game, side, action):
+        """Backbone: apply one action dict for the side to move."""
+        if game["status"] != "active":
+            raise ApiError(400, "game over")
+        board = self.board_for(game)
+        if board.to_move != side:
+            raise ApiError(400, "not your turn")
+        if not isinstance(action, dict) or not board.is_legal(action, side):
+            raise ApiError(400, "illegal action")
+        ply = len(storage.get_moves(game["id"]))
+        board.apply(action)
+        storage.record_move(game["id"], ply, (0, 0), (0, 0), False,
+                            data=json.dumps(action))
+        if board.winner is not None:
+            self._finish_backbone(game, board)
+        self.bump(game["id"])
+        return action
+
+    def _finish_backbone(self, game, board):
+        w = board.winner
+        if w == "draw":
+            self.finish(game, "draw", "stalemate")
+        else:
+            wt = ("victory" if board.score(w) >= board.target_vp
+                  else "stalemate")
+            self.finish(game, w, wt)
+
+    def ai_step_backbone(self, game, side):
+        board = self.board_for(game)
+        ai_side = 0 if game["white_id"] is None else 1
+        if game["status"] != "active":
+            return {"move": None}
+        if board.to_move != ai_side:
+            raise ApiError(400, "not the AI's turn")
+        act = backbone_engine.ai_move(board, game["ai_difficulty"])
+        explain = backbone_engine.explain_action(board, act, ai_side)
+        ply = len(storage.get_moves(game["id"]))
+        board.apply(act)
+        storage.record_move(game["id"], ply, (0, 0), (0, 0), False,
+                            data=json.dumps(act))
+        if board.winner is not None:
+            self._finish_backbone(game, board)
+        self.bump(game["id"])
+        return {"move": act, "info": {"difficulty": game["ai_difficulty"],
+                                      "explain": explain}}
+
     def make_move(self, game, side, fr, to):
         if game["status"] != "active":
             raise ApiError(400, "game over")
@@ -522,6 +594,8 @@ class GameHub:
             raise ApiError(400, "not an AI game")
         if game["status"] != "active":
             return {"move": None}
+        if game.get("game_type") == "backbone":
+            return self.ai_step_backbone(game, side)
         board = self.board_for(game)
         ai_side = 0 if game["white_id"] is None else 1
         if board.to_move != ai_side:
@@ -589,6 +663,14 @@ class GameHub:
         if game["status"] != "active":
             raise ApiError(400, "game over")
         if self.is_ai_game(game):
+            if game.get("game_type") == "backbone":
+                # the backbone AI has no draw evaluation: play it out
+                if action == "accept":
+                    self.finish(game, "draw", "agreed")
+                    self.bump(game["id"])
+                    return {"accepted": True, "draw_agreed": True}
+                return {"accepted": False, "draw_agreed": False,
+                        "reason": "The AI wants to play on."}
             # AI answers immediately, like the legacy endpoint
             board = self.board_for(game)
             ai_side = 0 if game["white_id"] is None else 1
@@ -665,8 +747,14 @@ def start_sweeper(interval_s=60):
 
 
 # ---------------- lobby ----------------
-def create_seek(player, board_id, modes, side_pref, rated, target_name):
-    modes = validate_setup(board_id, modes)
+def create_seek(player, board_id, modes, side_pref, rated, target_name,
+                game_type="facet"):
+    if game_type not in GAME_TYPES:
+        raise ApiError(400, "unknown game type")
+    if game_type == "backbone":
+        board_id, modes = "standard", set()
+    else:
+        modes = validate_setup(board_id, modes)
     if rated and player["is_guest"]:
         raise ApiError(403, "guests play casual only — claim your account"
                             " to play rated games")
@@ -681,7 +769,8 @@ def create_seek(player, board_id, modes, side_pref, rated, target_name):
             raise ApiError(400, "cannot challenge yourself")
         target_id = t["id"]
     sid = storage.create_seek(player["id"], board_id, modes, side_pref,
-                              1 if rated else 0, target_id)
+                              1 if rated else 0, target_id,
+                              game_type=game_type)
     return sid
 
 
@@ -727,6 +816,7 @@ def seeks_payload(player):
         out.append({"id": s["id"], "player": s["player_name"],
                     "rating": round(s["rating"]),
                     "is_guest": bool(s["is_guest"]),
+                    "game_type": s.get("game_type", "facet"),
                     "board": s["board"], "modes": s["modes"],
                     "side_pref": s["side_pref"], "you_play": you_play,
                     "rated": bool(s["rated"]),
@@ -743,6 +833,7 @@ def my_games_payload(player):
         board = HUB.board_for(g)
         opp = g["black_name"] if side == 0 else g["white_name"]
         out.append({"id": g["id"], "board": g["board"], "modes": g["modes"],
+                    "game_type": g.get("game_type", "facet"),
                     "type": "ai" if g["ai_difficulty"] else "pvp",
                     "opponent": opp or "AI",
                     "your_side": side,

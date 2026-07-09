@@ -1,6 +1,13 @@
-# FACET
+# FACET (+ BACKBONE)
 
 A chess-inspired strategy game where the board shapes your pieces. Your move isn't determined by what piece you are — it's determined by where you stand.
+
+The server also hosts **BACKBONE** (`/backbone.html`) — a 2-player
+network-building game on a hex grid (rules in `Backbone_Rulebook.md`):
+build routers, servers and datacenters, connect cities, hack your rival.
+Same accounts, lobby, ratings, AI difficulties, and offline mode as FACET;
+engine in `backbone_engine.py` with a line-for-line JS port
+(`docs/backbone_engine.js`, parity-verified).
 
 ## The idea
 

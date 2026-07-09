@@ -191,6 +191,7 @@
   <div class="toast info" v-if="noticeMsg">{{ noticeMsg }}</div>
   <h1>F A C E T</h1>
   <p class="sub">Your tile grants your move. Hold both thrones — or capture the enemy monarch.
+     <a href="backbone.html" style="color:var(--hl);margin-left:8px" title="Network-building hex strategy">BACKBONE →</a>
      <span v-if="adapterMode==='local'" style="opacity:.5">(offline mode)</span></p>
 
   <div class="layout">
@@ -909,9 +910,9 @@ createApp({
         const [seeks,games,me]=await Promise.all(
           [this.adapter.getSeeks(),this.adapter.myGames(),this.adapter.me()]);
         if(me&&me.player) this.me=me;
-        if(seeks.seeks) this.lobbySeeks=seeks.seeks;
+        if(seeks.seeks) this.lobbySeeks=seeks.seeks.filter(s=>!s.game_type||s.game_type==='facet');
         if(games.games){
-          this.myGames=games.games;
+          this.myGames=games.games.filter(g=>!g.game_type||g.game_type==='facet');
           // a seek of ours got accepted -> a new pvp game appeared: open it,
           // but never yank the player out of a pvp game they are already in
           const inActivePvp=this.isPvp && this.gameMeta && this.gameMeta.status==='active';

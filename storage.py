@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS sessions(
 
 CREATE TABLE IF NOT EXISTS games(
   id TEXT PRIMARY KEY,
+  game_type TEXT NOT NULL DEFAULT 'facet',
   board TEXT NOT NULL, modes TEXT NOT NULL,
   white_id TEXT REFERENCES players(id),
   black_id TEXT REFERENCES players(id),
@@ -63,11 +64,13 @@ CREATE TABLE IF NOT EXISTS moves(
   fx INTEGER NOT NULL, fy INTEGER NOT NULL,
   tx INTEGER NOT NULL, ty INTEGER NOT NULL,
   bumped INTEGER NOT NULL DEFAULT 0,
+  data TEXT,
   played_at TEXT NOT NULL,
   PRIMARY KEY (game_id, ply));
 
 CREATE TABLE IF NOT EXISTS seeks(
   id TEXT PRIMARY KEY,
+  game_type TEXT NOT NULL DEFAULT 'facet',
   player_id TEXT NOT NULL REFERENCES players(id),
   board TEXT NOT NULL, modes TEXT NOT NULL,
   side_pref TEXT NOT NULL DEFAULT 'random',
@@ -96,9 +99,21 @@ def _conn():
     return c
 
 
+MIGRATIONS = (  # idempotent column additions for databases created earlier
+    "ALTER TABLE games ADD COLUMN game_type TEXT NOT NULL DEFAULT 'facet'",
+    "ALTER TABLE moves ADD COLUMN data TEXT",
+    "ALTER TABLE seeks ADD COLUMN game_type TEXT NOT NULL DEFAULT 'facet'",
+)
+
+
 def init_db():
     c = _conn()
     c.executescript(SCHEMA)
+    for m in MIGRATIONS:
+        try:
+            c.execute(m)
+        except sqlite3.OperationalError:
+            pass  # column already exists
     c.commit()
 
 
@@ -306,15 +321,15 @@ def sweep_sessions():
 
 # ---------------- games ----------------
 def create_game(board, modes, white_id, black_id, ai_difficulty=None,
-                rated=0, move_allowance_s=259200):
+                rated=0, move_allowance_s=259200, game_type="facet"):
     c = _conn()
     gid = new_id()
     t = now_iso()
     c.execute(
-        "INSERT INTO games(id, board, modes, white_id, black_id,"
+        "INSERT INTO games(id, game_type, board, modes, white_id, black_id,"
         " ai_difficulty, rated, status, move_allowance_s, created_at,"
-        " last_move_at) VALUES (?,?,?,?,?,?,?,'active',?,?,?)",
-        (gid, board, json.dumps(sorted(modes)), white_id, black_id,
+        " last_move_at) VALUES (?,?,?,?,?,?,?,?,'active',?,?,?)",
+        (gid, game_type, board, json.dumps(sorted(modes)), white_id, black_id,
          ai_difficulty, rated, move_allowance_s, t, t))
     c.commit()
     return gid
@@ -328,20 +343,20 @@ def get_game(gid):
     return g
 
 
-def record_move(gid, ply, fr, to, bumped):
+def record_move(gid, ply, fr, to, bumped, data=None):
     c = _conn()
     t = now_iso()
     c.execute(
-        "INSERT INTO moves(game_id, ply, fx, fy, tx, ty, bumped, played_at)"
-        " VALUES (?,?,?,?,?,?,?,?)",
-        (gid, ply, fr[0], fr[1], to[0], to[1], 1 if bumped else 0, t))
+        "INSERT INTO moves(game_id, ply, fx, fy, tx, ty, bumped, data,"
+        " played_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (gid, ply, fr[0], fr[1], to[0], to[1], 1 if bumped else 0, data, t))
     c.execute("UPDATE games SET last_move_at=? WHERE id=?", (t, gid))
     c.commit()
 
 
 def get_moves(gid):
     rs = _conn().execute(
-        "SELECT ply, fx, fy, tx, ty, bumped, played_at FROM moves"
+        "SELECT ply, fx, fy, tx, ty, bumped, data, played_at FROM moves"
         " WHERE game_id=? ORDER BY ply", (gid,)).fetchall()
     return [dict(r) for r in rs]
 
@@ -485,14 +500,15 @@ def player_stats(player_id):
 
 
 # ---------------- seeks ----------------
-def create_seek(player_id, board, modes, side_pref, rated, target_player):
+def create_seek(player_id, board, modes, side_pref, rated, target_player,
+                game_type="facet"):
     c = _conn()
     sid = new_id()
     c.execute(
-        "INSERT INTO seeks(id, player_id, board, modes, side_pref, rated,"
-        " target_player, created_at) VALUES (?,?,?,?,?,?,?,?)",
-        (sid, player_id, board, json.dumps(sorted(modes)), side_pref,
-         rated, target_player, now_iso()))
+        "INSERT INTO seeks(id, game_type, player_id, board, modes, side_pref,"
+        " rated, target_player, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (sid, game_type, player_id, board, json.dumps(sorted(modes)),
+         side_pref, rated, target_player, now_iso()))
     c.commit()
     return sid
 
