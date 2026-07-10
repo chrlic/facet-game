@@ -1,6 +1,7 @@
 {
   "name": "BACKBONE",
   "short_name": "BACKBONE",
+  "id": "/backbone.html",
   "description": "Network-building strategy game — build routers, servers and datacenters, connect cities, hack your rival.",
   "start_url": "./backbone.html",
   "scope": "./backbone.html",
