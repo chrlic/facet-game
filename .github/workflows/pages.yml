@@ -17,7 +17,8 @@ jobs:
         run: |
           VERSION="v-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
           sed -i "s/const CACHE = \"facet-v[0-9]*\"/const CACHE = \"facet-${VERSION}\"/" docs/sw.js
-          echo "Cache version: facet-${VERSION}"
+          sed -i "s/const CACHE = \"backbone-v[0-9]*\"/const CACHE = \"backbone-${VERSION}\"/" docs/bb-sw.js
+          echo "Cache version: facet-${VERSION} / backbone-${VERSION}"
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:

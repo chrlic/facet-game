@@ -4,6 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="theme-color" content="#0f1320" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="manifest" href="manifest-backbone.json" />
+<link rel="apple-touch-icon" href="bb-icon-192.png" />
+<link rel="icon" type="image/png" href="bb-favicon.png" />
 <title>BACKBONE</title>
 <script src="backbone_engine.js"></script>
 <script src="adapter.js"></script>
@@ -912,6 +917,7 @@ createApp({
     this.newGame();
   }
 }).mount("#app");
+if('serviceWorker' in navigator) navigator.serviceWorker.register('bb-sw.js', {scope: './backbone.html'});
 </script>
 </body>
 </html>
