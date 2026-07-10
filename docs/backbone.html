@@ -134,7 +134,10 @@
 
   <div class="layout">
     <div class="boardwrap">
-      <svg :width="svgW" :height="svgH" :viewBox="svgViewBox"
+      <!-- viewBox is static (must match svgW/svgH, derived from the constant
+           hexSize=30) because :viewBox on an in-DOM template gets lowercased
+           to the invalid "viewbox" attribute before Vue ever sees it. -->
+      <svg :width="svgW" :height="svgH" viewBox="0 0 514 440"
            style="max-width:100%;height:auto;display:block">
         <g v-for="c in cells" :key="c.k">
           <polygon :points="c.points" :class="hexClass(c)" @click="clickHex(c)"/>
@@ -475,7 +478,6 @@ createApp({
     hexSize(){ return 30; },
     svgW(){ return Math.ceil(Math.sqrt(3)*this.hexSize*(9+0.5)+20); },
     svgH(){ return Math.ceil(this.hexSize*(1.5*8+2)+20); },
-    svgViewBox(){ return `0 0 ${this.svgW} ${this.svgH}`; },
     cells(){
       if(!this.state) return [];
       const out=[];
