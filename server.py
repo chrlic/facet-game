@@ -12,84 +12,67 @@ API:
   GET  /api/log?id=                             -> {log:[...events]}
 """
 import json
-import uuid
+import os
 import time
 import traceback
-import threading
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 
-from facet_engine import (canonical_board, make_board, BOARDS, CLASSIC_BOARDS,
-                          DECAY_BOARDS, FOG_BOARDS, MOMENTUM_BOARDS, ai_move,
-                          ai_evaluate_draw, ai_wants_draw, resolve_fog_move)
 import storage
 import service
 from service import HUB, ApiError
 
-# Legacy anonymous in-memory games (/api/*) are kept for older cached PWA
-# clients; the SPA now uses the persistent /api/v1/* API below.
-GAMES = {}            # id -> {"board": Board, "difficulty": str, "log": [...]}
-LOCK = threading.Lock()
 STATIC = Path(__file__).parent / "docs"
+STATIC_ROOT = STATIC.resolve()
 
-DIFF = {  # name -> (time_budget_seconds, max_depth)
-    "easy":   (0.25, 2),
-    "normal": (1.0, 4),
-    "hard":   (2.5, 6),
-}
+MAX_BODY = 64 * 1024  # reject larger request bodies (memory-DoS guard)
+
+# Behind a reverse proxy the socket peer is the proxy, so its forwarded
+# client-IP header must be trusted for per-IP rate limiting. Enable with
+# FACET_TRUST_PROXY=1 and have nginx set:  proxy_set_header X-Real-IP $remote_addr;
+TRUST_PROXY = os.environ.get("FACET_TRUST_PROXY", "").lower() \
+    not in ("", "0", "false", "no")
+
+# Cross-origin API access is refused unless the Origin is in this allowlist.
+# The SPA is served same-origin and needs nothing here; set
+# FACET_ALLOWED_ORIGINS (comma-separated) only for a genuine cross-origin caller.
+ALLOWED_ORIGINS = {o.strip() for o in
+                   os.environ.get("FACET_ALLOWED_ORIGINS", "").split(",")
+                   if o.strip()}
 
 
 def _ts():
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
-def _log_event(game, kind, **kw):
-    entry = {"t": _ts(), "event": kind, **kw}
-    game["log"].append(entry)
-
-
-def serialize(board, draw_agreed=False, viewer=0):
-    w = "draw" if draw_agreed else board.winner()
-    fog = 'fog' in board.modes
-    vis = board.visible_cells(viewer) if fog else None
-    pieces = {}
-    for (x, y), (o, m) in board.pieces.items():
-        if fog and vis is not None and (x, y) not in vis and o != viewer:
-            continue
-        pieces[f"{x},{y}"] = {"owner": o, "monarch": m}
-    if w is not None or (fog and board.to_move != viewer):
-        legal = []
-    else:
-        # fog: legal moves come from the mover's own view, so the list never
-        # reveals hidden pieces (slides through fog resolve as bumps on apply)
-        src = board.fog_view(board.to_move) if fog else board
-        legal = src.legal_moves(board.to_move)
-    out = {
-        "W": board.W, "H": board.H,
-        "terrain": {f"{x},{y}": g for (x, y), g in board.terrain.items()},
-        "pieces": pieces,
-        "to_move": board.to_move,
-        "thrones": [[x, y] for (x, y) in board.thrones()],
-        "winner": w,
-        "modes": list(board.modes),
-        "legal": [[[fx, fy], [tx, ty]] for ((fx, fy), (tx, ty)) in legal],
-    }
-    if 'momentum' in board.modes:
-        out["momentum"] = {f"{x},{y}": g for (x, y), g in board.linger.items()}
-    return out
-
-
 class Handler(BaseHTTPRequestHandler):
+    timeout = 30  # drop idle/slow sockets (slowloris guard)
+
     def log_message(self, fmt, *args):
-        print(f"[{_ts()}] {self.client_address[0]} {fmt % args}")
+        print(f"[{_ts()}] {self._client_ip()} {fmt % args}")
+
+    def _client_ip(self):
+        if TRUST_PROXY:
+            xri = self.headers.get("X-Real-IP")
+            if xri:
+                return xri.strip()
+            xff = self.headers.get("X-Forwarded-For")
+            if xff:
+                # nginx's $proxy_add_x_forwarded_for appends the true peer
+                # last, so the final entry is the one it vouches for
+                return xff.split(",")[-1].strip()
+        return self.client_address[0]
 
     def _cors(self):
-        origin = self.headers.get("Origin", "*")
-        self.send_header("Access-Control-Allow-Origin", origin)
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        origin = self.headers.get("Origin")
+        if origin and origin in ALLOWED_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers",
+                             "Content-Type, Authorization")
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -111,8 +94,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read_json(self):
         n = int(self.headers.get("Content-Length", 0) or 0)
-        if not n:
+        if n <= 0:
             return {}
+        if n > MAX_BODY:
+            self.close_connection = True  # don't try to keep a half-read socket
+            raise ApiError(413, "request body too large")
         return json.loads(self.rfile.read(n) or b"{}")
 
     # ---- v1 API ----
@@ -129,6 +115,8 @@ class Handler(BaseHTTPRequestHandler):
     def _v1(self, method, parsed):
         try:
             data = self._read_json() if method == "POST" else {}
+        except ApiError as e:
+            return self._send(e.code, {"error": e.msg})
         except Exception:
             return self._send(400, {"error": "bad json"})
         try:
@@ -146,7 +134,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # ---- auth (rate-limited per IP) ----
         if parts and parts[0] == "auth" and method == "POST":
-            if not service.AUTH_LIMITER.allow(self.client_address[0]):
+            if not service.AUTH_LIMITER.allow(self._client_ip()):
                 return self._send(429, {"error": "too many attempts, slow down"})
             action = parts[1] if len(parts) > 1 else ""
             if action == "register":
@@ -230,6 +218,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"seeks": service.seeks_payload(self._auth())})
         if path == "/seeks" and method == "POST":
             p = self._auth()
+            if not service.ACTION_LIMITER.allow(p["id"]):
+                raise ApiError(429, "too many requests, slow down")
             sid = service.create_seek(
                 p, data.get("board", "classic"), data.get("modes", []),
                 data.get("side_pref", "random"), data.get("rated", False),
@@ -252,6 +242,8 @@ class Handler(BaseHTTPRequestHandler):
         # ---- games ----
         if path == "/games" and method == "POST":
             p = self._auth()
+            if not service.ACTION_LIMITER.allow(p["id"]):
+                raise ApiError(429, "too many requests, slow down")
             gt = data.get("game_type", "facet")
             if gt not in service.GAME_TYPES:
                 raise ApiError(400, "unknown game type")
@@ -281,6 +273,11 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts) >= 3 and parts[0] == "games":
             p = self._auth()
             gid, action = parts[1], parts[2]
+            # AI search is the one expensive operation — cap it per user so a
+            # scripted client can't monopolise CPU
+            if (action == "ai" and method == "POST"
+                    and not service.AI_LIMITER.allow(p["id"])):
+                raise ApiError(429, "too many AI requests, slow down")
             if action == "state" and method == "GET":
                 game, side = HUB.load_game(gid, p)
                 qs = parse_qs(parsed.query)
@@ -349,188 +346,28 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path.startswith("/") and not parsed.path.startswith("/api/"):
             name = parsed.path.lstrip("/")
-            ctypes = {".js": "application/javascript", ".css": "text/css",
-                      ".png": "image/png", ".svg": "image/svg+xml",
-                      ".html": "text/html; charset=utf-8",
-                      ".json": "application/json",
-                      ".webmanifest": "application/manifest+json"}
-            ext = "." + name.rsplit(".", 1)[-1] if "." in name else ""
-            ctype = ctypes.get(ext, "application/octet-stream")
-            if (STATIC / name).exists():
+            # resolve and confirm the target stays inside docs/ — otherwise
+            # "../" sequences would escape the static root (path traversal)
+            try:
+                target = (STATIC / name).resolve()
+                target.relative_to(STATIC_ROOT)
+            except (ValueError, OSError):
+                return self._send(404, {"error": "not found"})
+            if target.is_file():
+                ctypes = {".js": "application/javascript", ".css": "text/css",
+                          ".png": "image/png", ".svg": "image/svg+xml",
+                          ".html": "text/html; charset=utf-8",
+                          ".json": "application/json",
+                          ".webmanifest": "application/manifest+json"}
+                ext = "." + name.rsplit(".", 1)[-1] if "." in name else ""
+                ctype = ctypes.get(ext, "application/octet-stream")
                 return self._serve_static(name, ctype)
-
-        if parsed.path == "/api/state":
-            qs = parse_qs(parsed.query)
-            gid = (qs.get("id") or [""])[0]
-            with LOCK:
-                g = GAMES.get(gid)
-                if not g:
-                    return self._send(404, {"error": "no such game"})
-                return self._send(200, {"id": gid, "state": serialize(g["board"], g.get("draw_agreed", False), viewer=g.get("human", 0))})
-        if parsed.path == "/api/boards":
-            bl = {k: {"name": v["name"], "desc": v["desc"], "size": v["size"],
-                       "supports_classic": k in CLASSIC_BOARDS,
-                       "supports_decay": k in DECAY_BOARDS,
-                       "supports_fog": k in FOG_BOARDS,
-                       "supports_momentum": k in MOMENTUM_BOARDS}
-                  for k, v in BOARDS.items()}
-            return self._send(200, {"boards": bl})
-        if parsed.path == "/api/log":
-            qs = parse_qs(parsed.query)
-            gid = (qs.get("id") or [""])[0]
-            with LOCK:
-                g = GAMES.get(gid)
-                if not g:
-                    return self._send(404, {"error": "no such game"})
-                return self._send(200, {"id": gid, "log": list(g["log"])})
         return self._send(404, {"error": "not found"})
 
     def do_POST(self):
         parsed = urlparse(self.path)
         if parsed.path.startswith("/api/v1/"):
             return self._v1("POST", parsed)
-        try:
-            data = self._read_json()
-        except Exception:
-            return self._send(400, {"error": "bad json"})
-
-        if parsed.path == "/api/new":
-            diff = data.get("difficulty", "normal")
-            if diff not in DIFF:
-                diff = "normal"
-            board_id = data.get("board", "classic")
-            if board_id not in BOARDS:
-                board_id = "classic"
-            req_modes = set(data.get("modes", []))
-            modes = set()
-            if 'decay' in req_modes and board_id in DECAY_BOARDS:
-                modes.add('decay')
-            if 'fog' in req_modes and board_id in FOG_BOARDS:
-                modes.add('fog')
-            # momentum is mutually exclusive with decay/fog (validation data)
-            if ('momentum' in req_modes and board_id in MOMENTUM_BOARDS
-                    and not modes):
-                modes.add('momentum')
-            if not modes and board_id not in CLASSIC_BOARDS:
-                board_id = "classic"
-            human = data.get("human_side", 0)
-            if human not in (0, 1):
-                human = 0
-            gid = uuid.uuid4().hex[:12]
-            with LOCK:
-                g = {"board": make_board(board_id, modes=modes),
-                     "difficulty": diff, "human": human, "log": []}
-                GAMES[gid] = g
-                _log_event(g, "new_game", difficulty=diff, board=board_id,
-                           modes=list(modes), human_side=human, game_id=gid)
-                return self._send(200, {"id": gid, "difficulty": diff,
-                                        "modes": list(modes),
-                                        "human_side": human,
-                                        "state": serialize(g["board"], viewer=human)})
-
-        if parsed.path == "/api/move":
-            gid = data.get("id")
-            fr = data.get("from"); to = data.get("to")
-            with LOCK:
-                g = GAMES.get(gid)
-                if not g:
-                    return self._send(404, {"error": "no such game"})
-                board = g["board"]
-                human = g.get("human", 0)
-                if board.winner() is not None:
-                    _log_event(g, "error", msg="move after game over",
-                               move={"from": fr, "to": to})
-                    return self._send(400, {"error": "game over",
-                                            "state": serialize(board, viewer=human)})
-                mv = ((fr[0], fr[1]), (to[0], to[1]))
-                src = (board.fog_view(board.to_move)
-                       if 'fog' in board.modes else board)
-                legal = set(src.legal_moves(board.to_move))
-                if mv not in legal:
-                    _log_event(g, "error", msg="illegal move",
-                               move={"from": fr, "to": to},
-                               player=board.to_move)
-                    return self._send(400, {"error": "illegal move",
-                                            "state": serialize(board, viewer=human)})
-                mv, bumped = resolve_fog_move(board, mv, board.to_move)
-                board.apply(mv)
-                _log_event(g, "move", player=board.to_move ^ 1,
-                           move={"from": fr, "to": list(mv[1])}, bumped=bumped)
-                w = board.winner()
-                if w is not None:
-                    _log_event(g, "game_over", winner=w)
-                return self._send(200, {"state": serialize(board, viewer=human),
-                                        "move": [list(mv[0]), list(mv[1])],
-                                        "bumped": bumped})
-
-        if parsed.path == "/api/ai":
-            gid = data.get("id")
-            with LOCK:
-                g = GAMES.get(gid)
-                if not g:
-                    return self._send(404, {"error": "no such game"})
-                board = g["board"]
-                diff = g["difficulty"]
-                human = g.get("human", 0)
-                ai_side = human ^ 1
-            if board.winner() is not None:
-                return self._send(200, {"state": serialize(board, viewer=human),
-                                        "move": None})
-            budget, depth_limit = DIFF[diff]
-            try:
-                t0 = time.monotonic()
-                mv, info = ai_move(board, time_budget=budget, max_depth=depth_limit)
-                elapsed = round(time.monotonic() - t0, 3)
-                info["time_s"] = elapsed
-            except Exception:
-                tb = traceback.format_exc()
-                print(f"[{_ts()}] AI ERROR game={gid}\n{tb}")
-                with LOCK:
-                    _log_event(g, "error", msg="ai crash", traceback=tb)
-                return self._send(500, {"error": "AI error, see game log",
-                                        "state": serialize(board, viewer=human)})
-            with LOCK:
-                if mv is not None:
-                    board.apply(mv)
-                move_out = ([list(mv[0]), list(mv[1])] if mv else None)
-                _log_event(g, "ai_move", move=move_out, info=info)
-                w = board.winner()
-                if w is not None:
-                    _log_event(g, "game_over", winner=w)
-                resp = {"state": serialize(board, viewer=human),
-                        "move": move_out, "info": info}
-                # AI may propose a draw if it thinks it's losing badly
-                if w is None and ai_wants_draw(board, ai_side, time_budget=0.3,
-                                               max_depth=3):
-                    resp["draw_offer"] = True
-                    _log_event(g, "ai_draw_offer")
-                return self._send(200, resp)
-
-        if parsed.path == "/api/draw":
-            gid = data.get("id")
-            with LOCK:
-                g = GAMES.get(gid)
-                if not g:
-                    return self._send(404, {"error": "no such game"})
-                board = g["board"]
-                human = g.get("human", 0)
-                if board.winner() is not None:
-                    return self._send(400, {"error": "game over",
-                                            "state": serialize(board, viewer=human)})
-            budget_t, depth_t = DIFF.get(g["difficulty"], DIFF["normal"])
-            accepted, reason = ai_evaluate_draw(board, human ^ 1,
-                                                time_budget=min(budget_t, 0.5),
-                                                max_depth=min(depth_t, 4))
-            with LOCK:
-                _log_event(g, "draw_offer", by="human",
-                           accepted=accepted, reason=reason)
-                if accepted:
-                    g["draw_agreed"] = True
-                    _log_event(g, "game_over", winner="draw")
-                return self._send(200, {"accepted": accepted, "reason": reason,
-                                        "state": serialize(board, viewer=human),
-                                        "draw_agreed": accepted})
-
         return self._send(404, {"error": "not found"})
 
     def _serve_static(self, name, ctype):
@@ -541,13 +378,16 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    import os
     storage.init_db()
     service.promote_admin_from_env()
     service.start_sweeper(int(os.environ.get("FACET_SWEEP_SECONDS", 60)))
     port = int(os.environ.get("PORT", 8000))
-    httpd = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"[{_ts()}] FACET server on http://localhost:{port}"
+    # bind 0.0.0.0 by default (Docker); set HOST=127.0.0.1 when nginx runs on
+    # the same host, so the app port isn't reachable from outside
+    host = os.environ.get("HOST", "0.0.0.0")
+    httpd = ThreadingHTTPServer((host, port), Handler)
+    httpd.daemon_threads = True  # don't let lingering connections block shutdown
+    print(f"[{_ts()}] FACET server on http://{host}:{port}"
           f" (db: {storage.DB_PATH})")
     httpd.serve_forever()
 

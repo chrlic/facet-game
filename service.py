@@ -132,8 +132,26 @@ class RateLimiter:
             self.hits[key] = q
             return True
 
+    def prune(self):
+        """Drop keys whose window has fully expired (bounds memory growth)."""
+        now = time.time()
+        with self.lock:
+            for k in list(self.hits):
+                q = [t for t in self.hits[k] if now - t < self.window]
+                if q:
+                    self.hits[k] = q
+                else:
+                    del self.hits[k]
 
+
+# per-IP: account actions (register/login/guest/claim/recover/rename/logout)
 AUTH_LIMITER = RateLimiter(limit=10, window_s=60)
+# per-user: AI move requests — the one CPU-heavy call (env-tunable)
+AI_LIMITER = RateLimiter(
+    limit=int(os.environ.get("FACET_AI_RATE", 30)), window_s=60)
+# per-user: game and seek creation
+ACTION_LIMITER = RateLimiter(
+    limit=int(os.environ.get("FACET_ACTION_RATE", 30)), window_s=60)
 
 
 # ---------------- auth ----------------
@@ -397,6 +415,22 @@ class GameHub:
     def forget(self, gid):
         with self.lock:
             self.boards.pop(gid, None)
+
+    def prune_inactive(self):
+        """Drop cached boards + long-poll bookkeeping for games that are no
+        longer active, so these dicts don't grow without bound over the life
+        of the process. Terminal games reload lazily if anyone views them."""
+        with self.lock:
+            gids = list(self.boards.keys() | self.conds.keys())
+        for gid in gids:
+            g = storage.get_game(gid)
+            if g and g["status"] == "active":
+                continue
+            with self.lock:
+                self.boards.pop(gid, None)
+                self.conds.pop(gid, None)
+                self.versions.pop(gid, None)
+                self.glocks.pop(gid, None)
 
     # -- game access --
     def load_game(self, gid, player):
@@ -737,8 +771,12 @@ def start_sweeper(interval_s=60):
             time.sleep(interval_s)
             try:
                 HUB.sweep_forfeits()
+                HUB.prune_inactive()
                 storage.sweep_sessions()
                 storage.sweep_seeks()
+                AUTH_LIMITER.prune()
+                AI_LIMITER.prune()
+                ACTION_LIMITER.prune()
             except Exception as e:  # keep the sweeper alive
                 print(f"[sweeper] error: {e}")
     t = threading.Thread(target=loop, daemon=True, name="facet-sweeper")
