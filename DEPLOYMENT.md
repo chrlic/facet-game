@@ -28,6 +28,7 @@ single SQLite file; nothing else is persistent.
 | `FACET_ADMIN` | *(none)* | Name of a **registered** account to auto-grant admin on startup. |
 | `FACET_AI_RATE` | `30` | Max AI-move requests per user per minute. |
 | `FACET_ACTION_RATE` | `30` | Max game/seek creations per user per minute. |
+| `FACET_REPORT_RATE` | `5` | Max bug-report submissions per user per minute. |
 | `FACET_MOVE_SECONDS` | `259200` (3 d) | PvP move allowance before forfeit. |
 | `FACET_AI_ABANDON_SECONDS` | `604800` (7 d) | Idle AI games cleaned up after this. |
 | `FACET_SWEEP_SECONDS` | `60` | Housekeeping interval (forfeits, expiries, cache prune). |
@@ -195,7 +196,10 @@ Admin is granted to an existing **registered** (non-guest) account:
 3. `/admin.html` is now available to that account.
 
 `manage.py` is safe to run while the server is up (SQLite WAL). Other commands:
-`list-players [query]`, `reset-password <name>`, `stats`.
+`list-players [query]`, `reset-password <name>`, `stats`, and bug-report
+review — `list-reports [--status open|reviewed|all]`, `show-report <id>
+[--json]` (report + full game record + moves), `resolve-report <id>
+[--reopen]`.
 
 ---
 

@@ -49,6 +49,7 @@
   svg .hex.hackable{fill:#402424;cursor:pointer}
   svg .hex.hackable:hover{fill:#553030}
   svg .hex.sel{stroke:var(--hl);stroke-width:2.5}
+  svg .hex.pickcity{fill:#4a3f1a;stroke:var(--hl);stroke-width:3;cursor:pointer}
   svg text{pointer-events:none;user-select:none}
   .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px}
   .pv{background:#0c1020;border-radius:9px;padding:8px}
@@ -194,6 +195,11 @@
             <title v-else-if="c.piece.kind==='server'&&state.server_city[c.k]">{{ c.serverActive ? 'Connected — scoring 1 AI token for its city' : 'Its city is not currently connected' }}</title>
           </g>
         </g>
+        <g v-if="showCoords" style="pointer-events:none">
+          <text v-for="c in cells" :key="'xy'+c.k" :x="c.cx" :y="c.cy-14"
+                text-anchor="middle" font-size="8" fill="#aeb7cc" opacity="0.85"
+                font-family="ui-monospace,monospace">{{ c.x }},{{ c.y }}</text>
+        </g>
       </svg>
       <div class="row" style="margin-top:6px;font-size:11px;color:var(--muted);gap:12px" v-if="state">
         <span><svg width="16" height="10"><line x1="1" y1="5" x2="15" y2="5" stroke="#8b95ad" stroke-width="2"/></svg> network link</span>
@@ -280,9 +286,9 @@
             <b>{{ me.player.name }}</b>
             <span class="muted" v-if="me.player.is_guest">(guest — casual games only)</span>
             <span class="muted" v-else>
-              · {{ me.player.rating }}
-              <b v-if="me.player.rank!=='Unranked'" style="color:var(--hl)">{{ me.player.rank }}</b>
-              <span v-else>({{ me.player.rated_games }}/10 placement)</span>
+              · {{ me.player.ratings.backbone.rating }}
+              <b v-if="me.player.ratings.backbone.rank!=='Unranked'" style="color:var(--hl)">{{ me.player.ratings.backbone.rank }}</b>
+              <span v-else>({{ me.player.ratings.backbone.rated_games }}/10 placement)</span>
             </span>
           </span>
           <span class="row" style="gap:6px">
@@ -352,6 +358,9 @@
         <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;margin-top:6px">
           <input type="checkbox" :checked="showAiExplain" @change="toggleAiExplain"> Explain AI moves
         </label>
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;margin-top:4px">
+          <input type="checkbox" :checked="showCoords" @change="toggleCoords"> Show hex coordinates
+        </label>
       </div>
       <div class="card" v-else>
         <div class="row">
@@ -370,6 +379,9 @@
         </div>
         <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;margin-top:6px">
           <input type="checkbox" :checked="showAiExplain" @change="toggleAiExplain"> Explain AI moves
+        </label>
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;margin-top:4px">
+          <input type="checkbox" :checked="showCoords" @change="toggleCoords"> Show hex coordinates
         </label>
       </div>
 
@@ -416,6 +428,20 @@
            <b>final turn</b>: your opponent plays one more turn, then the
            higher score wins (ties go to connected cities, then a draw).</p>
       </div>
+
+      <div class="card">
+        <b style="font-size:13px">Bug report</b>
+        <textarea v-model="bugDescription" rows="3"
+                  placeholder="Describe what went wrong or looked off…"
+                  style="width:100%;resize:vertical;background:#0c1020;color:var(--ink);
+                         border:1px solid #33415f;border-radius:8px;padding:8px;
+                         margin-top:8px;font-size:13px;font-family:inherit"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="dlbtn" v-if="isOnline" @click="submitReport"
+                  :disabled="reportBusy">Submit to server</button>
+          <button class="dlbtn" @click="downloadReport">Download report</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -431,9 +457,11 @@ createApp({
     selectedTool:null, rerouteFrom:null, pendingServer:null,
     busy:false, errorMsg:null, _errT:null, noticeMsg:null, _notT:null,
     showRules:false, seekRated:false,
+    bugDescription:'', reportBusy:false,
     bbSeeks:[], bbGames:[], _lobbyTimer:null, hadSeek:false, _seen:{},
     aiExplainHistory:[],
     showAiExplain: localStorage.getItem("bb_showAiExplain")!=="0",
+    showCoords: localStorage.getItem("bb_showCoords")==="1",
     authForm:null, authName:'', authPass:'', authBusy:false,
     recoveryCode:null, lbOpen:false, lbRows:[],
     tools:[
@@ -654,6 +682,8 @@ createApp({
       if(c.hack) cls.push("hackable");
       else if(c.legal) cls.push("legal");
       if(c.sel) cls.push("sel");
+      if(this.pendingServer && this.cityChoices.some(ci=>ci[0]===c.x&&ci[1]===c.y))
+        cls.push("pickcity");
       return cls;
     },
     toolEnabled(t){
@@ -670,6 +700,52 @@ createApp({
       this._errT=setTimeout(()=>this.errorMsg=null,5000); },
     showNotice(m){ this.noticeMsg=m; clearTimeout(this._notT);
       this._notT=setTimeout(()=>this.noticeMsg=null,4000); },
+    _reportContext(){
+      return {
+        game_type: "backbone",
+        board: this.gameMeta ? this.gameMeta.board : "standard",
+        difficulty: this.gameMeta ? this.gameMeta.difficulty : this.difficulty,
+        type: this.gameMeta ? this.gameMeta.type : "ai",
+        your_side: this.humanSide,
+        winner: this.winner,
+        board_state: this.state,
+        game_meta: this.gameMeta,
+        ai_explanations: this.aiExplainHistory,
+        mode: this.adapterMode,
+        browser: navigator.userAgent,
+        screen: { width: window.innerWidth, height: window.innerHeight },
+      };
+    },
+    async submitReport(){
+      if(this.reportBusy) return;
+      const desc=(this.bugDescription||'').trim();
+      if(!desc){ this.showError('Please describe the problem before submitting.'); return; }
+      this.reportBusy=true;
+      try{
+        const r=await this.adapter.submitReport({
+          description: desc, game_id: this.id || null,
+          client_info: this._reportContext() });
+        if(r && r.error){ this.showError(r.error); }
+        else { this.bugDescription=''; this.showNotice('Thanks — your report was submitted for review.'); }
+      }catch(e){ this.showError('Could not submit the report. Please try again.'); }
+      this.reportBusy=false;
+    },
+    downloadReport(){
+      const report={
+        report_type:'backbone_bug_report',
+        downloaded:new Date().toISOString(),
+        description:this.bugDescription||'(no description provided)',
+        game_id:this.id,
+        player:this.me?.player?.name,
+        ...this._reportContext(),
+      };
+      const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`backbone-report-${this.id||'unknown'}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    },
     async _call(fn){
       try{ const r=await fn(); if(r&&r.error)this.showError(r.error); return r; }
       catch(e){ this.showError(e.message); return {error:e.message}; }
@@ -739,6 +815,10 @@ createApp({
       }
       if(this.winner!==null) this.refreshLobby();
     },
+    toggleCoords(){
+      this.showCoords=!this.showCoords;
+      localStorage.setItem("bb_showCoords", this.showCoords?"1":"0");
+    },
     toggleAiExplain(){
       this.showAiExplain=!this.showAiExplain;
       localStorage.setItem("bb_showAiExplain", this.showAiExplain?"1":"0");
@@ -768,6 +848,13 @@ createApp({
     clickHex(c){
       if(!this.myTurn||!this.selectedTool) return;
       const t=this.selectedTool;
+      // resolving a multi-city Server: click the city on the board to serve it
+      if(this.pendingServer){
+        if(this.cityChoices.some(ci=>ci[0]===c.x&&ci[1]===c.y)){
+          this.buildServer([c.x,c.y]); return;
+        }
+        this.pendingServer=null;  // clicking elsewhere cancels the choice
+      }
       if(t==="reroute"){
         if(!this.rerouteFrom){
           if(this.legalTargets.has(c.k)) this.rerouteFrom=c.k;
@@ -779,13 +866,21 @@ createApp({
         }else this.rerouteFrom=null;
         return;
       }
-      if(!this.legalTargets.has(c.k)) return;
+      if(!this.legalTargets.has(c.k)){
+        // explain why nothing happened instead of silently ignoring the click
+        if(t!=="hack"){
+          if(c.isCity) this.showNotice("You can't build on a city — put a Server on an empty hex NEXT TO it that your network reaches.");
+          else if(t==="server" && !c.piece) this.showNotice("A Server must sit next to a city and be linked to your network. This hex isn't reachable from your network yet.");
+        }
+        return;
+      }
       if(t==="hack"){ this.doAction({a:"hack",x:c.x,y:c.y}); return; }
       if(t==="server"){
         const opts=this.state.legal.filter(a=>a.a==="build"&&a.piece==="server"
                                             &&a.x===c.x&&a.y===c.y);
         if(opts.length===1){ this.doAction(opts[0]); return; }
-        this.pendingServer=[c.x,c.y];  // multiple adjacent cities: choose
+        this.pendingServer=[c.x,c.y];  // borders 2 cities: pick which to serve
+        this.showNotice("This spot can serve two cities — click the city you want to serve (highlighted).");
         return;
       }
       this.doAction({a:"build",piece:t,x:c.x,y:c.y});
@@ -846,7 +941,7 @@ createApp({
     async toggleLeaderboard(){
       this.lbOpen=!this.lbOpen;
       if(this.lbOpen){
-        const r=await this.adapter.leaderboard();
+        const r=await this.adapter.leaderboard('backbone');
         if(r.leaderboard) this.lbRows=r.leaderboard;
       }
     },

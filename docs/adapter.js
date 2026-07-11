@@ -44,7 +44,7 @@ class ServerAdapter{
   async rename(name){return this._fetch("/api/v1/auth/rename",{name});}
   async logout(){await this._fetch("/api/v1/auth/logout",{});this._setToken(null);}
   async me(){return this._fetch("/api/v1/me");}
-  async leaderboard(){return this._fetch("/api/v1/leaderboard");}
+  async leaderboard(gameType){return this._fetch(`/api/v1/leaderboard${gameType?`?game_type=${gameType}`:""}`);}
   async profile(name){return this._fetch(`/api/v1/players/${encodeURIComponent(name)}`);}
   // ---- games ----
   async getBoards(){return this._fetch("/api/v1/boards");}
@@ -86,6 +86,7 @@ class ServerAdapter{
     return r;
   }
   async myGames(){return this._fetch("/api/v1/games?status=active");}
+  async submitReport(payload){return this._fetch("/api/v1/reports",payload);}
 }
 
 class LocalAdapter{

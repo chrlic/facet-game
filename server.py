@@ -165,14 +165,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"boards": service.boards_payload()})
 
         if path == "/leaderboard" and method == "GET":
+            qs = parse_qs(parsed.query)
+            gt = (qs.get("game_type") or ["facet"])[0]
+            if gt not in service.GAME_TYPES:
+                gt = "facet"
             rows = []
-            for i, p in enumerate(storage.leaderboard()):
+            for i, p in enumerate(storage.leaderboard(gt)):
                 rows.append({"pos": i + 1, "name": p["name"],
                              "rating": round(p["rating"]),
                              "rated_games": p["rated_games"],
                              "rank": service.rank_of(p["rating"],
                                                      p["rated_games"])})
-            return self._send(200, {"leaderboard": rows})
+            return self._send(200, {"leaderboard": rows, "game_type": gt})
 
         if len(parts) == 2 and parts[0] == "players" and method == "GET":
             p = storage.get_player_by_name(parts[1])
@@ -212,6 +216,15 @@ class Handler(BaseHTTPRequestHandler):
                 service.admin_abort_game(parts[2])
                 return self._send(200, {"ok": True})
             raise ApiError(404, "not found")
+
+        # ---- bug reports ----
+        if path == "/reports" and method == "POST":
+            p = self._auth()
+            if not service.REPORT_LIMITER.allow(p["id"]):
+                raise ApiError(429, "too many reports, slow down")
+            return self._send(200, service.submit_report(
+                p, data.get("description"), data.get("game_id"),
+                data.get("client_info")))
 
         # ---- lobby ----
         if path == "/seeks" and method == "GET":

@@ -162,10 +162,13 @@ Both start the server automatically and open the game in your browser.
   All SQL sits in `storage.py`; swapping in a standard DB engine later means
   reimplementing that one module.
 
-- **Ratings & ranks** — rated PvP games move a single Elo rating (K=40 for
-  the first 15 rated games, then K=20; one rating across all boards and
-  modes). Ranks are computed from rating bands: Field → Gate → Spire →
-  Tower → Throne → Monarch, shown after 10 placement games. Rated rematches
+- **Ratings & ranks** — rated PvP games move an Elo rating (K=40 for
+  the first 15 rated games, then K=20). Each game — FACET and BACKBONE —
+  keeps its **own independent rating, ladder, and placement count**; a game
+  in one never affects the other. Ranks are computed from rating bands:
+  Field → Gate → Spire → Tower → Throne → Monarch, shown after 10 placement
+  games (per game). The leaderboard is per game (`/api/v1/leaderboard?game_type=`).
+  Rated rematches
   between the same players alternate colors (the first-mover advantage is
   measured, so the ladder averages it out). Guests play casual only; AI
   games never affect the rating. Leaderboard and public profiles included.
@@ -175,8 +178,9 @@ Both start the server automatically and open the game in your browser.
   statistics, all players with search and password reset, and active games
   with force-abort. Grant admin with `python3 manage.py make-admin <name>`
   (or `FACET_ADMIN=<name>` at startup). `manage.py` also does
-  `list-players`, `reset-password`, and `stats` from the shell — safe to run
-  while the server is up.
+  `list-players`, `reset-password`, `stats`, and the bug-report commands
+  (`list-reports` / `show-report` / `resolve-report`) from the shell — safe to
+  run while the server is up.
 
 The old anonymous `/api/*` endpoints remain for cached PWA clients; the SPA
 uses the authenticated `/api/v1/*` API. GitHub Pages offline mode is
@@ -227,12 +231,24 @@ Mode is auto-detected: the frontend tries to reach `/api/boards` — if the serv
 
 ## Bug reports
 
-The UI includes a built-in bug reporter. Describe the issue, click "Download full report", and the JSON file captures:
-- Your description
-- Full board state (reproducible position)
-- Complete move history (client + server event logs)
-- AI search info (depth, nodes, evaluation)
-- Browser and screen info
+The UI includes a built-in bug reporter. Describe the issue, then either:
+- **Submit to server** (online mode) — stores the report in the database for
+  admin review, tied to the current game, with the board snapshot, UI state,
+  client event log, and browser info. The server already holds the full move
+  log, so the whole game is reconstructable from the report.
+- **Download full report** — saves the same context (plus the complete move
+  history) as a local JSON file. Always available, including offline.
+
+Admins pull submitted reports from the shell (safe while the server runs):
+
+```bash
+python3 manage.py list-reports [--status open|reviewed|all]
+python3 manage.py show-report <id> [--json]   # report + full game record + moves
+python3 manage.py resolve-report <id> [--reopen]
+```
+
+`show-report` bundles the report with all related game data — the game record,
+both players, and every move — reconstructed from the database by `game_id`.
 
 ## API
 

@@ -85,12 +85,11 @@
         <button style="margin-left:8px" @click="tempPw=null">Dismiss</button>
       </div>
       <table style="margin-top:8px">
-        <tr><th>name</th><th>rating</th><th>rated</th><th>games (act/fin)</th>
+        <tr><th>name</th><th>ratings (per game)</th><th>games (act/fin)</th>
             <th>type</th><th>last seen</th><th>created</th><th></th></tr>
         <tr v-for="p in players" :key="p.id">
           <td><b>{{ p.name }}</b> <span class="tag" v-if="p.is_admin" style="color:var(--sel)">admin</span></td>
-          <td>{{ Math.round(p.rating) }}</td>
-          <td>{{ p.rated_games }}</td>
+          <td class="muted">{{ p.ratings || '—' }}</td>
           <td>{{ p.active_games }} / {{ p.finished_games }}</td>
           <td><span class="tag">{{ p.is_guest ? 'guest' : 'account' }}</span></td>
           <td class="muted">{{ ago(p.last_seen) }}</td>

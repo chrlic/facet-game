@@ -91,24 +91,34 @@ def _k_factor(rated_games):
 
 
 def apply_ratings(game, winner):
-    """Elo update for a finished rated PvP game. Idempotent via the
-    rating_events primary key + finish_game's one-time gate."""
+    """Elo update for a finished rated PvP game — on the ladder for THIS
+    game_type (FACET and Backbone keep independent ratings). Idempotent via
+    the rating_events primary key + finish_game's one-time gate."""
+    gt = game.get("game_type", "facet")
     white = storage.get_player(game["white_id"])
     black = storage.get_player(game["black_id"])
     if not white or not black:
         return
+    wr = storage.get_rating(white["id"], gt)
+    br = storage.get_rating(black["id"], gt)
     sw = 0.5 if winner == "draw" else (1.0 if str(winner) == "0" else 0.0)
-    ew = 1.0 / (1.0 + 10 ** ((black["rating"] - white["rating"]) / 400.0))
-    new_w = white["rating"] + _k_factor(white["rated_games"]) * (sw - ew)
-    new_b = black["rating"] + _k_factor(black["rated_games"]) * ((1 - sw) - (1 - ew))
-    storage.apply_rating(game["id"], white["id"], white["rating"], new_w)
-    storage.apply_rating(game["id"], black["id"], black["rating"], new_b)
+    ew = 1.0 / (1.0 + 10 ** ((br["rating"] - wr["rating"]) / 400.0))
+    new_w = wr["rating"] + _k_factor(wr["rated_games"]) * (sw - ew)
+    new_b = br["rating"] + _k_factor(br["rated_games"]) * ((1 - sw) - (1 - ew))
+    storage.apply_rating(game["id"], white["id"], gt, wr["rating"], new_w)
+    storage.apply_rating(game["id"], black["id"], gt, br["rating"], new_b)
 
 
 def public_player(p):
-    return {"name": p["name"], "rating": round(p["rating"]),
-            "rated_games": p["rated_games"],
-            "rank": rank_of(p["rating"], p["rated_games"]),
+    # one rating/rank per game type; each UI displays its own game's entry
+    ratings = storage.get_all_ratings(p["id"])
+    per_game = {}
+    for gt in GAME_TYPES:
+        r = ratings.get(gt, {"rating": storage.DEFAULT_RATING, "rated_games": 0})
+        per_game[gt] = {"rating": round(r["rating"]),
+                        "rated_games": r["rated_games"],
+                        "rank": rank_of(r["rating"], r["rated_games"])}
+    return {"name": p["name"], "ratings": per_game,
             "is_guest": bool(p["is_guest"]),
             "created_at": p["created_at"]}
 
@@ -152,6 +162,9 @@ AI_LIMITER = RateLimiter(
 # per-user: game and seek creation
 ACTION_LIMITER = RateLimiter(
     limit=int(os.environ.get("FACET_ACTION_RATE", 30)), window_s=60)
+# per-user: bug-report submission (low frequency, spam guard)
+REPORT_LIMITER = RateLimiter(
+    limit=int(os.environ.get("FACET_REPORT_RATE", 5)), window_s=60)
 
 
 # ---------------- auth ----------------
@@ -777,6 +790,7 @@ def start_sweeper(interval_s=60):
                 AUTH_LIMITER.prune()
                 AI_LIMITER.prune()
                 ACTION_LIMITER.prune()
+                REPORT_LIMITER.prune()
             except Exception as e:  # keep the sweeper alive
                 print(f"[sweeper] error: {e}")
     t = threading.Thread(target=loop, daemon=True, name="facet-sweeper")
@@ -851,8 +865,9 @@ def seeks_payload(player):
             if prev:
                 you_play = ("white" if prev["white_id"] == s["player_id"]
                             else "black")
+        gt = s.get("game_type", "facet")
         out.append({"id": s["id"], "player": s["player_name"],
-                    "rating": round(s["rating"]),
+                    "rating": round(storage.get_rating(s["player_id"], gt)["rating"]),
                     "is_guest": bool(s["is_guest"]),
                     "game_type": s.get("game_type", "facet"),
                     "board": s["board"], "modes": s["modes"],
@@ -862,6 +877,33 @@ def seeks_payload(player):
                     "direct": s["target_player"] is not None,
                     "created_at": s["created_at"]})
     return out
+
+
+# ---------------- bug reports ----------------
+MAX_REPORT_DESC = 4000
+MAX_REPORT_INFO = 40000
+
+
+def submit_report(player, description, game_id=None, client_info=None):
+    description = (description or "").strip()
+    if not description:
+        raise ApiError(400, "a description is required")
+    if len(description) > MAX_REPORT_DESC:
+        description = description[:MAX_REPORT_DESC]
+    # only attach a game the reporter actually took part in
+    game_type = None
+    if game_id:
+        g = storage.get_game(game_id)
+        if g and HUB.side_of(g, player["id"]) is not None:
+            game_type = g.get("game_type", "facet")
+        else:
+            game_id = None  # not their game (or gone) — drop the reference
+    info_json = None
+    if client_info is not None:
+        info_json = json.dumps(client_info, separators=(",", ":"))[:MAX_REPORT_INFO]
+    rid = storage.create_report(player["id"], game_id, game_type,
+                                description, info_json)
+    return {"report_id": rid}
 
 
 def my_games_payload(player):

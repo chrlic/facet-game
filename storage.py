@@ -84,6 +84,29 @@ CREATE TABLE IF NOT EXISTS rating_events(
   rating_before REAL NOT NULL, rating_after REAL NOT NULL,
   applied_at TEXT NOT NULL,
   PRIMARY KEY (game_id, player_id));
+
+CREATE TABLE IF NOT EXISTS ratings(
+  player_id TEXT NOT NULL REFERENCES players(id),
+  game_type TEXT NOT NULL,
+  rating REAL NOT NULL DEFAULT 1200,
+  rated_games INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (player_id, game_type));
+
+CREATE INDEX IF NOT EXISTS idx_ratings_board
+  ON ratings(game_type, rating);
+
+CREATE TABLE IF NOT EXISTS bug_reports(
+  id TEXT PRIMARY KEY,
+  player_id TEXT REFERENCES players(id),
+  game_id TEXT,                        -- soft ref; game may be gone/none
+  game_type TEXT,
+  description TEXT NOT NULL,
+  client_info TEXT,                    -- JSON blob: board snapshot, UI, browser
+  status TEXT NOT NULL DEFAULT 'open', -- open|reviewed
+  created_at TEXT NOT NULL);
+
+CREATE INDEX IF NOT EXISTS idx_reports_status
+  ON bug_reports(status, created_at);
 """
 
 
@@ -194,8 +217,12 @@ def set_admin(pid, flag=1):
 
 
 def all_players(q=None, limit=500):
-    sql = ("SELECT p.id, p.name, p.rating, p.rated_games, p.is_guest,"
+    # per-game ratings rolled into one string, e.g. "facet:1215(6) backbone:1203(4)"
+    sql = ("SELECT p.id, p.name, p.is_guest,"
            " p.is_admin, p.created_at, p.last_seen,"
+           " (SELECT group_concat(game_type||':'||CAST(ROUND(rating) AS INTEGER)"
+           "   ||'('||rated_games||')', ' ')"
+           "   FROM ratings r WHERE r.player_id=p.id) AS ratings,"
            " (SELECT COUNT(*) FROM games g WHERE g.status='active'"
            "   AND (g.white_id=p.id OR g.black_id=p.id)) AS active_games,"
            " (SELECT COUNT(*) FROM games g WHERE g.status='finished'"
@@ -262,12 +289,13 @@ def overview_stats():
     }
 
 
-def leaderboard(limit=50):
+def leaderboard(game_type, limit=50):
     rs = _conn().execute(
-        "SELECT name, rating, rated_games, is_guest FROM players"
-        " WHERE rated_games >= 1"
-        " ORDER BY rating DESC, rated_games DESC LIMIT ?",
-        (limit,)).fetchall()
+        "SELECT p.name, r.rating, r.rated_games, p.is_guest"
+        " FROM ratings r JOIN players p ON p.id = r.player_id"
+        " WHERE r.game_type=? AND r.rated_games >= 1"
+        " ORDER BY r.rating DESC, r.rated_games DESC LIMIT ?",
+        (game_type, limit)).fetchall()
     return [dict(r) for r in rs]
 
 
@@ -403,16 +431,41 @@ def finish_game(gid, winner, win_type):
     return cur.rowcount > 0
 
 
-def apply_rating(game_id, player_id, before, after):
+def apply_rating(game_id, player_id, game_type, before, after):
     c = _conn()
     c.execute(
         "INSERT INTO rating_events(game_id, player_id, rating_before,"
         " rating_after, applied_at) VALUES (?,?,?,?,?)",
         (game_id, player_id, before, after, now_iso()))
+    # per-game-type Elo lives in `ratings`, keyed (player_id, game_type)
     c.execute(
-        "UPDATE players SET rating=?, rated_games=rated_games+1 WHERE id=?",
-        (after, player_id))
+        "INSERT INTO ratings(player_id, game_type, rating, rated_games)"
+        " VALUES (?,?,?,1)"
+        " ON CONFLICT(player_id, game_type) DO UPDATE SET"
+        " rating=excluded.rating, rated_games=ratings.rated_games+1",
+        (player_id, game_type, after))
     c.commit()
+
+
+DEFAULT_RATING = 1200.0
+
+
+def get_rating(player_id, game_type):
+    r = _conn().execute(
+        "SELECT rating, rated_games FROM ratings"
+        " WHERE player_id=? AND game_type=?",
+        (player_id, game_type)).fetchone()
+    if r is None:
+        return {"rating": DEFAULT_RATING, "rated_games": 0}
+    return {"rating": r["rating"], "rated_games": r["rated_games"]}
+
+
+def get_all_ratings(player_id):
+    rs = _conn().execute(
+        "SELECT game_type, rating, rated_games FROM ratings WHERE player_id=?",
+        (player_id,)).fetchall()
+    return {r["game_type"]: {"rating": r["rating"],
+                             "rated_games": r["rated_games"]} for r in rs}
 
 
 def get_rating_events(game_id):
@@ -557,3 +610,45 @@ def sweep_seeks(max_age_days=7):
               - timedelta(days=max_age_days)).isoformat(timespec="milliseconds")
     c.execute("DELETE FROM seeks WHERE created_at < ?", (cutoff,))
     c.commit()
+
+
+# ---------------- bug reports ----------------
+def create_report(player_id, game_id, game_type, description, client_info):
+    c = _conn()
+    rid = new_id()
+    c.execute(
+        "INSERT INTO bug_reports(id, player_id, game_id, game_type,"
+        " description, client_info, status, created_at)"
+        " VALUES (?,?,?,?,?,?,'open',?)",
+        (rid, player_id, game_id, game_type, description, client_info,
+         now_iso()))
+    c.commit()
+    return rid
+
+
+def list_reports(status=None, limit=200):
+    q = ("SELECT r.id, r.game_id, r.game_type, r.description, r.status,"
+         " r.created_at, p.name AS player_name"
+         " FROM bug_reports r LEFT JOIN players p ON p.id = r.player_id")
+    args = []
+    if status:
+        q += " WHERE r.status = ?"
+        args.append(status)
+    q += " ORDER BY r.created_at DESC LIMIT ?"
+    args.append(limit)
+    return [dict(r) for r in _conn().execute(q, args).fetchall()]
+
+
+def get_report(rid):
+    r = _conn().execute(
+        "SELECT r.*, p.name AS player_name FROM bug_reports r"
+        " LEFT JOIN players p ON p.id = r.player_id WHERE r.id = ?",
+        (rid,)).fetchone()
+    return _row(r)
+
+
+def set_report_status(rid, status):
+    c = _conn()
+    cur = c.execute("UPDATE bug_reports SET status=? WHERE id=?", (status, rid))
+    c.commit()
+    return cur.rowcount > 0
