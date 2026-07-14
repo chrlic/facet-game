@@ -10,3 +10,5 @@ sim_run.sh
 facet.db
 facet.db-wal
 facet.db-shm
+logs/**
+

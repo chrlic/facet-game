@@ -10,6 +10,12 @@ datacenters, connect cities, hack your rival. Same accounts, lobby, ratings,
 AI difficulties, and offline mode as FACET; engine in `backbone_engine.py`
 with a line-for-line JS port (`docs/backbone_engine.js`, parity-verified).
 
+And **HYPERSCALE** (`/hyperscale.html`) — a solo-vs-AI economic strategy game on
+a 9×9 hex board (illustrated guide at `HYPERSCALE_GUIDE.pdf`): claim ground, wire
+datacenters to scarce shared power stations, staff them from your HQ, equip them
+from a finite parts market, and race the computer to the most AI tokens over 24
+days. Engine in `docs/hyperscale_engine.js`.
+
 ## The idea
 
 In chess, a rook is always a rook. In FACET, every stone is the same — but it borrows its movement from the **terrain tile** beneath it. Step onto a Tower tile and you slide like a rook. Jump to a Gate tile and you leap like a knight. The board itself becomes the most important piece.

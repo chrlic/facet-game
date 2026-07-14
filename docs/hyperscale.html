@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0f1320" />
+<title>HYPERSCALE</title>
+<script src="hyperscale_engine.js"></script>
+<script src="vue.global.prod.js"></script>
+<style>
+  :root{--bg:#0f1320;--panel:#171c2e;--ink:#e7ecf5;--muted:#8b95ad;
+        --p0:#5be0a8;--p1:#7aa2ff;--pwr:#e0965b;--hl:#ffd84d;--bad:#e07a6a;
+        --gpu:#5be0a8;--hbm:#7aa2ff;--cpu:#caa12e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:1120px;margin:0 auto;padding:16px}
+  h1{font-weight:800;letter-spacing:3px;margin:0 0 2px;font-size:24px}
+  .sub{color:var(--muted);margin:0 0 12px;font-size:13px}
+  a{color:var(--p0)}
+  .layout{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .boardwrap{background:var(--panel);padding:10px;border-radius:14px;box-shadow:0 10px 40px #0008;max-width:100%;min-width:0}
+  .side{flex:1;min-width:300px;max-width:420px}
+  .card{background:var(--panel);border-radius:12px;padding:11px 13px;margin-bottom:10px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .between{justify-content:space-between}
+  button{background:#243049;color:var(--ink);border:1px solid #33415f;padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px}
+  button:hover:not(:disabled){background:#2c3a58}
+  button:disabled{opacity:.4;cursor:default}
+  button.primary{background:var(--p0);color:#06281c;border-color:transparent}
+  button.tool.active{outline:2px solid var(--hl)}
+  select{background:#243049;color:var(--ink);border:1px solid #33415f;padding:7px;border-radius:8px}
+  .muted{color:var(--muted);font-size:12px}
+  .big{font-size:24px;font-weight:800;line-height:1}
+  .banner{padding:9px 12px;border-radius:10px;font-weight:600;font-size:14px;margin-bottom:10px}
+  .banner.you{background:#153a2b;border:1px solid #2f6b4f}
+  .banner.ai{background:#22305a;border:1px solid #35508f}
+  .banner.over{background:#3a3320;border:1px solid #6b5a2f}
+  svg .hex{stroke:#4d5d84;stroke-width:1.2;fill:#1b2136}
+  svg .hex.hq0{fill:#173a2c} svg .hex.hq1{fill:#1e2f56}
+  svg .hex.station{fill:#3a2f1c}
+  svg .hex.legal{fill:#24402f;cursor:pointer} svg .hex.legal:hover{fill:#2d5540}
+  button.tool.sab{border-color:#6b3540;color:#e59aa4}
+  button.tool.sab.active{outline:2px solid var(--bad)}
+  svg .sabtarget{cursor:pointer}
+  svg .sabtarget:hover polygon{stroke-opacity:1}
+  svg .hex.sel{stroke:var(--hl);stroke-width:2.6}
+  .mkt{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .mk{background:#0c1020;border-radius:9px;padding:7px 8px;text-align:center}
+  .mk .nm{font-weight:800;font-size:12px} .mk .pr{font-size:19px;font-weight:800}
+  .bar{height:4px;background:#2a3147;border-radius:2px;overflow:hidden;margin:3px 0}
+  .bar>span{display:block;height:100%}
+  .chip{display:inline-flex;align-items:center;gap:4px;background:#0c1020;border-radius:7px;padding:3px 8px;font-size:12px;font-weight:700}
+  .dot{width:9px;height:9px;border-radius:2px;flex:none}
+  .log{font-size:12px;color:var(--muted);line-height:1.55;max-height:130px;overflow:auto}
+  .log b{color:var(--ink)}
+  .leg{font-size:11px;color:var(--muted);display:flex;gap:9px;flex-wrap:wrap;margin-top:6px}
+  svg .aichange{animation:aipulse 1.6s ease-in-out infinite}
+  @keyframes aipulse{0%,100%{stroke-opacity:.9}50%{stroke-opacity:.3}}
+  .donutwrap{display:flex;align-items:center;gap:12px;margin-top:8px}
+  .tlegend{font-size:12px;line-height:1.7}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:5px}
+</style>
+</head>
+<body>
+<div id="app" class="wrap">
+  <h1>HYPERSCALE</h1>
+  <p class="sub">Claim ground, wire datacenters to shared power, staff them from your city, and equip them from the market.
+     <a href="./">← FACET</a> · <a href="backbone.html">BACKBONE</a></p>
+
+  <div class="card" v-if="!v">
+    <div class="row">
+      <label class="muted">Play as</label>
+      <select v-model="sideChoice">
+        <option value="0">Player 1 (green corner)</option>
+        <option value="1">Player 2 (blue corner)</option>
+      </select>
+      <button class="primary" @click="newGame">Start</button>
+    </div>
+    <p class="muted" style="margin-top:8px">
+      Each <b>day</b> you get <b>3 actions</b>. Build a <b>Road</b> (links back to your HQ, staffing),
+      a <b>Power line</b> (links to a station), or a <b>Datacenter</b>; or select a datacenter and
+      <b>add a server</b> — each server draws 2 GPU + 1 HBM + 1 CPU from the shared market (prices climb
+      as the reserve depletes). You can also <b>prestock</b> a component from the market to lock in today's
+      price or deny the scarce GPU to your opponent. A datacenter earns only when a <b>road</b>
+      connects it to your HQ <i>and</i> it's powered — either it sits <b>next to a station</b> or a chain of
+      <b>power lines</b> connects it to one. Power is <b>scarce and board-fixed</b> — the big central corridor
+      is the prize both players must fight for (max <b>4 servers per datacenter</b>); output = powered
+      servers/day. Running costs power + staffing that grows with road distance from HQ, so walling the
+      enemy into detours costs them. Any piece blocks the enemy from routing through it.
+      Most AI tokens after {{ MAXD }} days wins.
+    </p>
+  </div>
+
+  <template v-if="v">
+    <div class="banner" :class="v.over?'over':(v.yourTurn?'you':'ai')">
+      <span v-if="v.over">Day {{ v.max_days }} — {{ winnerText }} ({{ me.tokens }} vs {{ opp.tokens }} AI tokens)</span>
+      <span v-else-if="v.yourTurn">Day {{ v.day }}/{{ v.max_days }} · <b>{{ v.actions_left }}</b> action{{ v.actions_left===1?'':'s' }} left
+        <span class="muted"> — {{ hint }}</span></span>
+      <span v-else>Day {{ v.day }}/{{ v.max_days }} · AI is working…</span>
+    </div>
+
+    <div class="layout">
+      <div class="boardwrap">
+        <svg :width="svgW" :height="svgH" viewBox="0 0 514 440" style="max-width:100%;height:auto;display:block">
+          <g v-for="c in cells" :key="c.k">
+            <polygon :points="c.points" :class="hexClass(c)" @click="clickHex(c)"/>
+            <text :x="c.cx" :y="c.cy-19" text-anchor="middle" font-size="7" fill="#5a668a" style="pointer-events:none">{{ c.x }},{{ c.y }}</text>
+            <text v-if="c.hq>=0" :x="c.cx" :y="c.cy+4" text-anchor="middle" font-size="10"
+                  font-weight="800" :fill="pcol(c.hq)">HQ</text>
+          </g>
+          <!-- roads (solid owner-colour) -->
+          <line v-for="(e,i) in roadEdges" :key="'r'+i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2"
+                :stroke="pcol(e.owner)" stroke-width="3" stroke-opacity="0.5"/>
+          <!-- power lines: dashed connections along the owner's power pieces to their stations -->
+          <line v-for="(e,i) in powerEdges" :key="'pw'+i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2"
+                :stroke="pcol(e.owner)" stroke-width="2" stroke-dasharray="4,3" stroke-opacity="0.6"/>
+          <!-- road / power-line pieces + datacenters -->
+          <g v-for="c in cells" :key="'p'+c.k">
+            <circle v-if="c.piece && c.piece.kind==='road'" :cx="c.cx" :cy="c.cy" r="5"
+                    :fill="pcol(c.piece.owner)" :opacity="c.roadNode?0.9:0.4" @click="clickHex(c)"/>
+            <g v-else-if="c.piece && c.piece.kind==='dc'" @click="clickHex(c)">
+              <rect :x="c.cx-13" :y="c.cy-13" width="26" height="26" rx="5"
+                    :fill="dcFill(c)" :stroke="c.k===selDC?'var(--hl)':pcol(c.piece.owner)"
+                    :stroke-width="c.k===selDC?3:(c.status.state==='producing'?2.2:1.3)"
+                    :stroke-dasharray="c.status.state==='no_power_line'?'4,3':''"/>
+              <text :x="c.cx" :y="c.cy+5" text-anchor="middle" font-size="13" font-weight="900"
+                    :fill="dcBadgeCol(c)">{{ dcBadge(c) }}</text>
+              <title>{{ dcTip(c) }}</title>
+            </g>
+          </g>
+          <!-- power stations (shared + built) as used/free donuts -->
+          <g v-for="c in stationCells" :key="'st'+c.k" @click="clickHex(c)">
+            <circle :cx="c.cx" :cy="c.cy" r="11" fill="none" stroke="#2a3147" stroke-width="5"/>
+            <circle :cx="c.cx" :cy="c.cy" r="11" fill="none" stroke="var(--pwr)" stroke-width="5"
+                    stroke-linecap="round" :stroke-dasharray="dash(c.stationUsed/c.stationCap, 11)"
+                    :transform="'rotate(-90 '+c.cx+' '+c.cy+')'"/>
+            <circle v-if="c.piece" :cx="c.cx" :cy="c.cy" r="15" fill="none" :stroke="pcol(c.piece.owner)" stroke-width="1.5"/>
+            <text :x="c.cx" :y="c.cy+3.5" text-anchor="middle" font-size="10" font-weight="800" fill="var(--pwr)">{{ c.stationUsed }}</text>
+            <title>Power station — {{ c.stationUsed }} of {{ c.stationCap }} power used</title>
+          </g>
+          <!-- what the AI just changed (fades) -->
+          <polygon v-for="c in aiChangeCells" :key="'ai'+c.k" :points="c.points"
+                   class="aichange" fill="none" stroke="var(--hl)" stroke-width="2.6"/>
+
+          <!-- sabotage mode: highlight enemy pieces you can demolish (esp. power lines, which have no glyph) -->
+          <g v-if="tool==='sabotage'" v-for="c in sabTargets" :key="'sab'+c.k" class="sabtarget" @click="clickHex(c)">
+            <polygon :points="c.points" fill="var(--bad)" fill-opacity="0.12" stroke="var(--bad)" stroke-width="2.2" stroke-dasharray="4,3" stroke-opacity="0.75"/>
+            <text :x="c.cx" :y="c.cy+5" text-anchor="middle" font-size="15" font-weight="800" fill="var(--bad)">✕</text>
+          </g>
+
+          <!-- persistent score chips (fly-to targets for daily production) -->
+          <g v-if="v && !resultsOn">
+            <g v-for="o in [0,1]" :key="'sc'+o">
+              <rect :x="tally(o).x-44" :y="tally(o).y-13" width="88" height="26" rx="8" fill="#141a2e" :stroke="pcol(o)" stroke-width="1.1" opacity="0.9"/>
+              <text :x="tally(o).x" :y="tally(o).y+5" text-anchor="middle" font-size="13" font-weight="800" :fill="pcol(o)">◇ {{ o===v.humanSide ? me.tokens : opp.tokens }}</text>
+            </g>
+          </g>
+          <!-- per-day production pulse (non-dimming): tokens rise from DCs to the score, cash floats at the wallet -->
+          <g v-if="fx.length">
+            <g v-for="p in fx" :key="p.id">
+              <rect v-if="p.kind==='tok'" :x="p.x-3" :y="p.y-3" width="6" height="6" :fill="p.color" :transform="'rotate(45 '+p.x+' '+p.y+')'" :opacity="p.op"/>
+              <circle v-else :cx="p.x" :cy="p.y" r="3" :fill="p.color" :opacity="p.op"/>
+            </g>
+          </g>
+          <text v-for="f in fxText" :key="f.id" :x="f.x" :y="f.y" text-anchor="middle" :font-size="f.size" font-weight="800" :fill="f.color" :opacity="f.op">{{ f.text }}</text>
+
+          <!-- end-of-game results recap: tokens fly from DCs, $ to/from each wallet -->
+          <g v-if="resultsOn">
+            <rect x="0" y="0" width="514" height="440" fill="#0b0f1c" opacity="0.62"/>
+            <!-- token tallies (top) -->
+            <g v-for="o in [0,1]" :key="'tal'+o">
+              <rect :x="tally(o).x-56" :y="tally(o).y-16" width="112" height="32" rx="9" fill="#141a2e" :stroke="pcol(o)" stroke-width="1.5"/>
+              <text :x="tally(o).x" :y="tally(o).y+6" text-anchor="middle" font-size="16" font-weight="800" :fill="pcol(o)">◇ {{ Math.round(tokensShown[o]) }} tokens</text>
+            </g>
+            <!-- wallets (at each HQ) -->
+            <g v-for="o in [0,1]" :key="'wal'+o">
+              <rect :x="wallet(o).x-48" :y="wallet(o).y-20" width="96" height="40" rx="9" fill="#141a2e" stroke="#33415f" stroke-width="1.2"/>
+              <text :x="wallet(o).x" :y="wallet(o).y-4" text-anchor="middle" font-size="11" font-weight="800" fill="var(--p0)">earned +${{ Math.round(earnedShown[o]) }}</text>
+              <text :x="wallet(o).x" :y="wallet(o).y+13" text-anchor="middle" font-size="11" font-weight="800" fill="var(--bad)">spent −${{ Math.round(spentShown[o]) }}</text>
+            </g>
+            <!-- flying particles -->
+            <g v-for="p in resultsParticles" :key="p.id">
+              <rect v-if="p.kind==='token'" :x="p.x-3.5" :y="p.y-3.5" width="7" height="7" :fill="p.color"
+                    :transform="'rotate(45 '+p.x+' '+p.y+')'" opacity="0.95"/>
+              <circle v-else :cx="p.x" :cy="p.y" :r="3.4" :fill="p.color" :opacity="p.kind==='spend'?(1-p.t*0.55):0.95"/>
+            </g>
+          </g>
+        </svg>
+        <div class="leg">
+          <span :style="{color:pcol(0)}">● P1</span><span :style="{color:pcol(1)}">● P2</span>
+          <span>HQ · ⚡ station</span>
+          <span><span :style="{color:pcol(0)}">●</span> road (to HQ)</span>
+          <span><span :style="{color:pcol(0)}">- - -</span> power line (to a station)</span>
+          <span style="color:var(--p0)">▣ earning</span>
+          <span class="muted">▢ no servers</span>
+          <span style="color:var(--bad)">▣ unpowered/no-road</span>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="card">
+          <div class="row between">
+            <div><span class="big" :style="{color:pcol(v.humanSide)}">{{ me.tokens }}</span> <span class="muted">you</span></div>
+            <div style="text-align:right"><span class="big" :style="{color:pcol(v.aiSide)}">{{ opp.tokens }}</span> <span class="muted">AI</span></div>
+          </div>
+          <div class="row" v-if="!v.over" style="margin-top:9px">
+            <button class="tool" :class="{active:tool==='road'}" :disabled="!v.yourTurn||!afford('road')" @click="pick('road')">Road · ${{ v.costs.road }}</button>
+            <button class="tool" :class="{active:tool==='powerline'}" :disabled="!v.yourTurn||!afford('powerline')" @click="pick('powerline')">Power line · ${{ v.costs.powerline }}</button>
+            <button class="tool" :class="{active:tool==='dc'}" :disabled="!v.yourTurn||!afford('dc')" @click="pick('dc')">Datacenter · ${{ v.costs.dc }}</button>
+            <button class="tool sab" :class="{active:tool==='sabotage'}" :disabled="!v.yourTurn||v.sabUsed||v.players[v.humanSide].capital<v.sabotageCost" @click="pick('sabotage')"
+                    :title="v.sabUsed ? 'already sabotaged today (1 per day)' : 'demolish an enemy road/power line next to one of your pieces'">Sabotage · ${{ v.sabotageCost }}</button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <button v-if="!v.over" :disabled="!v.yourTurn" @click="endDay">End day →</button>
+            <button v-if="v.over" class="primary" @click="playResults">{{ resultsOn ? 'Replay recap ▶' : 'Play recap ▶' }}</button>
+            <button @click="reset">New game</button>
+          </div>
+        </div>
+
+        <!-- market (always visible) -->
+        <div class="card">
+          <div class="row between"><b>Technology market</b>
+            <span class="muted" v-if="selDCcell">→ DC ({{ selDCcell.x }},{{ selDCcell.y }}){{ selMine ? '' : ' · AI' }}</span>
+            <span class="muted" v-else>select a datacenter to inspect / equip</span></div>
+          <div class="mkt" style="margin-top:8px">
+            <div class="mk" v-for="r in v.tech" :key="r">
+              <div class="nm" :style="{color:tcol(r)}">{{ r }}</div>
+              <div class="pr">${{ v.market[r].price }}</div>
+              <div class="muted" style="font-size:9px;margin-top:-2px">per unit</div>
+              <div class="bar"><span :style="{width:resPct(r)+'%',background:tcol(r)}"></span></div>
+              <div class="muted" style="font-size:10px">{{ v.market[r].reserve }} left<span v-if="myStock[r]" :style="{color:tcol(r)}"> · you hold {{ myStock[r] }}</span></div>
+              <div class="muted" style="font-size:10px">{{ v.server[r] }} per server</div>
+              <button v-if="!v.over" style="width:100%;margin-top:5px;font-size:11px" :disabled="!canBuy(r)" @click="buyRes(r)"
+                title="Prestock this component — hedge rising prices and deny the shared reserve to the AI">buy {{ v.buyLot }} · ${{ v.market[r].price }} ea</button>
+            </div>
+          </div>
+          <div class="muted" style="margin-top:7px">One <b>server</b> = 2 GPU + 1 HBM + 1 CPU, out of pocket
+            <b style="color:var(--ink)">${{ v.serverCost }}</b><span v-if="v.serverCost===0" style="color:var(--p0)"> (fully prestocked)</span><span v-if="!v.canBuyServer" style="color:var(--bad)"> · market is out of stock</span></div>
+          <!-- selected DC: server inventory (either player) + add-server action -->
+          <div v-if="selDCcell" class="donutwrap">
+            <svg width="70" height="70" viewBox="0 0 70 70">
+              <circle cx="35" cy="35" r="26" fill="none" stroke="#2a3147" stroke-width="9"/>
+              <circle cx="35" cy="35" r="26" fill="none" :stroke="pcol(selDCcell.piece.owner)" stroke-width="9"
+                      stroke-linecap="round" :stroke-dasharray="dash(selDCcell.servers/v.max_servers,26)" transform="rotate(-90 35 35)"/>
+              <text x="35" y="32" text-anchor="middle" font-size="15" font-weight="800" fill="var(--ink)">{{ selDCcell.servers }}/{{ v.max_servers }}</text>
+              <text x="35" y="46" text-anchor="middle" font-size="8" fill="var(--muted)">servers</text>
+            </svg>
+            <div class="tlegend" style="flex:1">
+              <div><b :style="{color:pcol(selDCcell.piece.owner)}">DC ({{ selDCcell.x }},{{ selDCcell.y }})</b>
+                <span class="muted">· {{ selMine ? 'yours' : 'AI' }}</span></div>
+              <div><b :style="{color:pcol(selDCcell.piece.owner)}">{{ selDCcell.servers }}</b> servers →
+                <b :style="{color:selDCcell.status.state==='producing'?pcol(selDCcell.piece.owner):'var(--muted)'}">{{ selDCcell.status.output }}</b> powered/day
+                <span v-if="selDCcell.status.state==='producing'&&selDCcell.status.powerCapped" style="color:var(--pwr)">· power-capped</span>
+              </div>
+              <div v-if="selDCcell.status.state==='producing'" class="muted">opex ${{ selDCcell.status.opex }}/day (road dist {{ selDCcell.status.dist }} from HQ)</div>
+              <div v-else style="color:var(--bad)">{{ statusWord(selDCcell.status.state) }}</div>
+              <!-- multi-source power: which stations this DC is drawing from (resilience) -->
+              <div v-if="drawing.length" style="margin-top:5px">
+                <span class="muted">drawing power from:</span>
+                <span v-for="s in drawing" :key="s.k" class="chip" style="margin:2px 0 0 4px">
+                  <span class="dot" style="background:var(--pwr)"></span>{{ s.k }} <b>×{{ s.amt }}</b></span>
+              </div>
+              <div v-if="idleStations.length" class="muted" style="margin-top:3px;font-size:11px">
+                also wired to {{ idleStations.join(', ') }} <span v-if="selDCcell.status.powerCapped">— all full, so it's capped</span></div>
+              <button v-if="selMine&&!v.over" class="primary" style="margin-top:6px" :disabled="!canAddServer" @click="addServer">
+                Add server · ${{ v.serverCost }}</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- your op -->
+        <div class="card">
+          <div class="row between"><b :style="{color:pcol(v.humanSide)}">You</b><span class="muted">💳 ${{ me.capital }}</span></div>
+          <div class="muted" style="margin-top:6px">{{ me.counts.dc }} datacenters ({{ me.earning }} earning, {{ me.servers }} powered servers) ·
+            {{ me.counts.road }} roads · {{ me.counts.powerline }} power lines · +{{ me.produced_last }} tokens/day</div>
+          <div class="row" style="margin-top:7px;gap:6px">
+            <span class="muted">unused components:</span>
+            <span class="chip" v-for="r in v.tech" :key="r" :style="{opacity:myStock[r]?1:0.45}">
+              <span class="dot" :style="{background:tcol(r)}"></span>{{ r }} <b>{{ myStock[r] }}</b></span>
+            <span v-if="stockEmpty(myStock)" class="muted" style="font-size:11px">— none prestocked</span>
+          </div>
+        </div>
+
+        <!-- AI op + log -->
+        <div class="card">
+          <div class="row between"><b :style="{color:pcol(v.aiSide)}">AI</b><span class="muted">💳 ${{ opp.capital }}</span></div>
+          <div class="muted" style="margin-top:6px">{{ opp.counts.dc }} datacenters ({{ opp.earning }} earning, {{ opp.servers }} powered servers) ·
+            {{ opp.counts.road }} roads · {{ opp.counts.powerline }} power lines · +{{ opp.produced_last }} tokens/day</div>
+          <div class="row" style="margin-top:7px;gap:6px">
+            <span class="muted">unused components:</span>
+            <span class="chip" v-for="r in v.tech" :key="r" :style="{opacity:v.stock[v.aiSide][r]?1:0.45}">
+              <span class="dot" :style="{background:tcol(r)}"></span>{{ r }} <b>{{ v.stock[v.aiSide][r] }}</b></span>
+            <span v-if="stockEmpty(v.stock[v.aiSide])" class="muted" style="font-size:11px">— none prestocked</span>
+          </div>
+          <div class="log" style="margin-top:9px">
+            <div v-for="(e,i) in v.log" :key="i"><span class="muted">d{{ e.day }}</span> <b>{{ e.who }}</b> {{ e.msg }}</div>
+          </div>
+        </div>
+
+        <!-- download game state + full move log (offline; no server) -->
+        <div class="card">
+          <b style="font-size:13px">Save / bug report</b>
+          <textarea v-model="bugNote" rows="2" placeholder="Optional note — what looked off…"
+                    style="width:100%;resize:vertical;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:8px;margin-top:8px;font-size:13px;font-family:inherit"></textarea>
+          <div class="row" style="margin-top:8px">
+            <button @click="downloadGame">Download game + moves</button>
+          </div>
+          <div class="muted" style="margin-top:6px;font-size:11px">Saves current status and every move as a JSON file you can share.</div>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
+
+<script>
+const { createApp, markRaw } = Vue;
+const PCOL=['var(--p0)','var(--p1)'], TCOL={GPU:'var(--gpu)',HBM:'var(--hbm)',CPU:'var(--cpu)'};
+createApp({
+  data(){ return { match:null, v:null, sideChoice:"0", tool:null, selDC:null, MAXD:HS_MAX_DAYS, bugNote:'',
+    resultsOn:false, resultsParticles:[], tokensShown:[0,0], earnedShown:[0,0], spentShown:[0,0],
+    _spawn:[], _raf:null, _t0:0, _pid:0, _autoRecap:false,
+    fx:[], fxText:[], _fxSpawn:[], _fxTextSpawn:[], _fxRaf:null, _fxT0:0, _animDays:0 }; },
+  computed:{
+    hexSize(){ return 30; },
+    svgW(){ return Math.ceil(Math.sqrt(3)*this.hexSize*9.5+20); },
+    svgH(){ return Math.ceil(this.hexSize*(1.5*8+2)+20); },
+    me(){ return this.v.players[this.v.humanSide]; },
+    opp(){ return this.v.players[this.v.aiSide]; },
+    cells(){
+      if(!this.v) return [];
+      return this.v.cells.map(c=>{
+        const [cx,cy]=this.hexCenter(c.x,c.y), s=this.hexSize, pts=[];
+        for(let i=0;i<6;i++){ const a=Math.PI/180*(60*i-30); pts.push((cx+s*Math.cos(a)).toFixed(1)+","+(cy+s*Math.sin(a)).toFixed(1)); }
+        return {...c, cx, cy, points:pts.join(" ")};
+      });
+    },
+    selDCcell(){ return this.selDC ? this.cells.find(c=>c.k===this.selDC) : null; },
+    selMine(){ return this.selDCcell && this.selDCcell.piece.owner===this.v.humanSide; },
+    stationCells(){ return this.cells.filter(c=>c.isStation); },
+    sabTargets(){ if(!this.v) return []; return this.cells.filter(c=>c.canSabotage); },
+    aiChangeCells(){ if(!this.v||!this.v.aiChanges.length) return [];
+      const s=new Set(this.v.aiChanges); return this.cells.filter(c=>s.has(c.k)); },
+    canAddServer(){ return this.v.yourTurn && this.selMine && this.selDCcell.servers<this.v.max_servers
+      && this.match.affordServer() && this.v.actions_left>0; },
+    myStock(){ return this.v.stock[this.v.humanSide]; },
+    drawing(){ const c=this.selDCcell; if(!c||!c.status||!c.status.sources) return [];
+      return Object.entries(c.status.sources).map(([k,amt])=>({k,amt})).sort((a,b)=>b.amt-a.amt); },
+    idleStations(){ const c=this.selDCcell; if(!c||!c.status||!c.status.reach) return [];
+      const drawn=new Set(this.drawing.map(d=>d.k)); return c.status.reach.filter(s=>!drawn.has(s)); },
+    stockEmpty(){ return s => this.v.tech.every(r=>!s[r]); },
+    // roads: owned road/dc pieces + HQ, same owner. edges between adjacent nodes.
+    roadEdges(){
+      if(!this.v) return [];
+      const by={}; this.cells.forEach(c=>by[c.k]=c); const out=[],seen=new Set();
+      const rn=(c,o)=> c.hq===o || (c.piece && (c.piece.kind==='road'||c.piece.kind==='dc') && c.piece.owner===o);
+      for(const c of this.cells) for(const o of [0,1]){ if(!rn(c,o)) continue;
+        for(const [nx,ny] of this.neigh(c.x,c.y)){ const d=by[nx+','+ny]; if(!d||!rn(d,o)) continue;
+          const e=(c.k<d.k?c.k+d.k:d.k+c.k)+o; if(seen.has(e))continue; seen.add(e);
+          out.push({x1:c.cx,y1:c.cy,x2:d.cx,y2:d.cy,owner:o}); } }
+      return out;
+    },
+    // power network: dashed lines between adjacent owned power pieces (powerline/dc) and
+    // the stations they touch — this is how power lines are shown (no piece glyph).
+    powerEdges(){
+      if(!this.v) return [];
+      const by={}; this.cells.forEach(c=>by[c.k]=c); const out=[],seen=new Set();
+      const owned=(c,o)=> c.piece && (c.piece.kind==='powerline'||c.piece.kind==='dc') && c.piece.owner===o;
+      for(const c of this.cells) for(const o of [0,1]){ if(!owned(c,o)) continue;
+        for(const [nx,ny] of this.neigh(c.x,c.y)){ const d=by[nx+','+ny]; if(!d) continue;
+          if(!(owned(d,o) || d.isStation)) continue;
+          const e=(c.k<d.k?c.k+d.k:d.k+c.k)+o; if(seen.has(e))continue; seen.add(e);
+          out.push({x1:c.cx,y1:c.cy,x2:d.cx,y2:d.cy,owner:o}); } }
+      return out;
+    },
+    hint(){ if(this.tool==='sabotage') return "click a highlighted enemy road / power line to demolish it";
+      if(this.tool) return `click an empty hex to build the ${this.tool}`;
+      if(this.selMine) return "add a server to this datacenter, or pick a tool";
+      if(this.selDC) return "inspecting the AI's datacenter — pick a tool to build";
+      return "pick a tool, or click a datacenter to inspect it"; },
+    winnerText(){ if(this.v.winner==='draw') return "a draw";
+      return this.v.winner===this.v.humanSide ? "you win! 🏆" : "the AI wins"; },
+  },
+  methods:{
+    dash(frac,r){ const C=2*Math.PI*r; return (Math.max(0,Math.min(1,frac||0))*C).toFixed(1)+' '+C.toFixed(1); },
+    dcTip(c){ const s=c.status;
+      if(s.state==='producing') return `+${s.output} tokens/day · opex $${s.opex}/day`;
+      return this.statusWord(s.state); },
+    hexCenter(x,y){ const s=this.hexSize,w=Math.sqrt(3)*s; return [10+w*(x+(y%2?0.5:0))+w/2, 10+1.5*s*(8-y)+s]; },
+    neigh(x,y){ const d=(y%2===0)?[[1,0],[-1,0],[0,1],[-1,1],[0,-1],[-1,-1]]:[[1,0],[-1,0],[1,1],[0,1],[1,-1],[0,-1]];
+      return d.map(([dx,dy])=>[x+dx,y+dy]); },
+    pcol(o){ return PCOL[o]; }, tcol(r){ return TCOL[r]; },
+    afford(k){ return this.match && this.match.affordBuild(k); },
+    resPct(r){ return Math.round(this.v.market[r].reserve/this.v.market[r].init*100); },
+    hexClass(c){ const cls=["hex"];
+      if(c.hq>=0) cls.push("hq"+c.hq);
+      if(c.station) cls.push("station");
+      if(this.tool && this.v.yourTurn && c.empty && this.afford(this.tool)) cls.push("legal");
+      if(c.k===this.selDC) cls.push("sel");
+      return cls; },
+    dcFill(c){ const s=c.status.state;
+      if(s==='producing') return '#153a2b'; if(s==='unpowered'||s==='no_road') return '#3a2020'; return '#1b2136'; },
+    dcBadge(c){ const s=c.status; return s.state==='producing'?('+'+s.output):'·'; },
+    dcBadgeCol(c){ const s=c.status.state;
+      if(s==='producing') return this.pcol(c.piece.owner);
+      if(s==='unpowered'||s==='no_road') return 'var(--bad)'; return 'var(--muted)'; },
+    statusWord(s){ return {no_servers:'no servers yet — add one from the market',unpowered:'no spare power at its station',no_power_line:'no power line to a station',no_road:'no road back to HQ'}[s]||s; },
+    sync(){ this.v=this.match.view();
+      if(this.tool && this.tool!=='sabotage' && !this.afford(this.tool)) this.tool=null;
+      if(this.tool==='sabotage' && (this.v.sabUsed || !this.v.yourTurn)) this.tool=null;
+      if(this.selDC && !this.v.cells.some(c=>c.k===this.selDC && c.piece && c.piece.kind==='dc')) this.selDC=null;
+      // animate each newly-resolved day's production + cashflow
+      if(this.v.dayLog && this.v.dayLog.length>this._animDays){
+        const nw=this.v.dayLog.slice(this._animDays); this._animDays=this.v.dayLog.length; this._playDayFx(nw); } },
+    _stopFx(){ for(const r of ['_raf','_fxRaf']) if(this[r]){ cancelAnimationFrame(this[r]); this[r]=null; }
+      this.resultsOn=false; this.resultsParticles=[]; this._spawn=[]; this._t0=0; this._autoRecap=false;
+      this.fx=[]; this.fxText=[]; this._fxSpawn=[]; this._fxTextSpawn=[]; this._fxT0=0; this._animDays=0; },
+    newGame(){ this._stopFx(); this.match=markRaw(new HyperscaleMatch({humanSide:Number(this.sideChoice)})); this.tool=null; this.selDC=null;
+      this._animDays=1e9; this.sync(); this._animDays=this.v.dayLog.length; },
+    reset(){ this._stopFx(); this.match=null; this.v=null; this.tool=null; this.selDC=null; },
+    pick(k){ this.tool=this.tool===k?null:k; this.selDC=null; },
+    clickHex(c){
+      if(this.tool==='sabotage'){
+        if(c.canSabotage && this.match.humanAct({a:"sabotage",x:c.x,y:c.y})){ this.tool=null; this.sync(); }
+        return;
+      }
+      if(this.tool && c.empty && this.afford(this.tool) && this.v.yourTurn){
+        if(this.match.humanAct({a:"build",piece:this.tool,x:c.x,y:c.y})) this.sync();
+        return;
+      }
+      if(c.piece && c.piece.kind==='dc'){ this.selDC=c.k; this.tool=null; }   // inspect either side's DC
+    },
+    addServer(){ if(!this.selDCcell) return;
+      if(this.match.humanAct({a:"install",x:this.selDCcell.x,y:this.selDCcell.y})) this.sync(); },
+    canBuy(r){ return this.v.yourTurn && this.v.actions_left>0 && this.match.affordBuy(r); },
+    buyRes(r){ if(this.match.humanAct({a:"buy",res:r})) this.sync(); },
+    // ---- per-day production pulse (fires after each day resolves) ----
+    _playDayFx(entries){
+      const byk={}; this.cells.forEach(c=>byk[c.k]=c); const PHEX=['#5be0a8','#7aa2ff'];
+      for(let e=0;e<entries.length;e++){ const ev=entries[e]; const base=e*600;
+        const chip=this.tally(ev.owner), w=this.wallet(ev.owner);
+        for(const h in ev.perDC){ const c=byk[h]; if(!c) continue;
+          for(let i=0;i<ev.perDC[h];i++) this._fxSpawn.push({kind:'tok',color:PHEX[ev.owner],born:base+Math.random()*350,dur:850,
+            sx:c.cx+(Math.random()-0.5)*12,sy:c.cy+(Math.random()-0.5)*12,ex:chip.x+(Math.random()-0.5)*52,ey:chip.y+(Math.random()-0.5)*8}); }
+        if(ev.out>0) this._fxTextSpawn.push({text:'+'+ev.out+' ◇',color:PHEX[ev.owner],size:13,born:base+300,dur:1200,sx:chip.x,sy:chip.y+20,ex:chip.x,ey:chip.y+40});
+        const cin=Math.round(ev.income+ev.revenue);
+        this._fxTextSpawn.push({text:'+$'+cin,color:'#5be0a8',size:12,born:base,dur:1300,sx:w.x-16,sy:w.y+4,ex:w.x-16,ey:w.y-24});
+        if(ev.opex>0) this._fxTextSpawn.push({text:'−$'+ev.opex,color:'#e07a6a',size:12,born:base+150,dur:1300,sx:w.x+16,sy:w.y+4,ex:w.x+16,ey:w.y+30});
+      }
+      if(!this._fxRaf){ this._fxT0=0; this._fxRaf=requestAnimationFrame(this._fxTick.bind(this)); }
+    },
+    _fxTick(ts){
+      if(!this._fxT0) this._fxT0=ts; const t=ts-this._fxT0;
+      while(this._fxSpawn.length && this._fxSpawn[0].born<=t){ const p=this._fxSpawn.shift(); p.id=++this._pid; p.startT=t; p.x=p.sx; p.y=p.sy; p.op=1; this.fx.push(p); }
+      while(this._fxTextSpawn.length && this._fxTextSpawn[0].born<=t){ const p=this._fxTextSpawn.shift(); p.id=++this._pid; p.startT=t; p.x=p.sx; p.y=p.sy; p.op=1; this.fxText.push(p); }
+      const a=[]; for(const p of this.fx){ const k=Math.min(1,(t-p.startT)/p.dur), e=1-Math.pow(1-k,3);
+        p.x=p.sx+(p.ex-p.sx)*e; p.y=p.sy+(p.ey-p.sy)*e; p.op=k<0.7?0.95:Math.max(0,0.95*(1-(k-0.7)/0.3)); if(k<1)a.push(p); }
+      this.fx=a;
+      const b=[]; for(const p of this.fxText){ const k=Math.min(1,(t-p.startT)/p.dur), e=1-Math.pow(1-k,3);
+        p.x=p.sx+(p.ex-p.sx)*e; p.y=p.sy+(p.ey-p.sy)*e; p.op=k<0.55?1:Math.max(0,1-(k-0.55)/0.45); if(k<1)b.push(p); }
+      this.fxText=b;
+      if(this._fxSpawn.length||this._fxTextSpawn.length||this.fx.length||this.fxText.length) this._fxRaf=requestAnimationFrame(this._fxTick.bind(this));
+      else this._fxRaf=null;
+    },
+    // ---- end-of-game results recap animation ----
+    tally(o){ return o===0 ? {x:150,y:26} : {x:364,y:26}; },
+    wallet(o){ const c=this.cells.find(x=>x.hq===o); const x=c?Math.max(52,Math.min(462,c.cx)):(o===0?60:454);
+      const y=c?Math.max(60,Math.min(400,c.cy)):(o===0?395:60); return {x,y}; },
+    playResults(){
+      if(!this.v||!this.v.summary) return;
+      if(this._raf){ cancelAnimationFrame(this._raf); this._raf=null; }
+      const S=this.v.summary; const byk={}; this.cells.forEach(c=>byk[c.k]=c);
+      this.resultsOn=true; this.resultsParticles=[]; this.tokensShown=[0,0]; this.earnedShown=[0,0]; this.spentShown=[0,0];
+      const jit=()=>(Math.random()-0.5); const q=[];
+      const PHEX=['#5be0a8','#7aa2ff'];   // hex (not CSS var) so SVG fill always resolves
+      const TOK=3, CASH=15, FLY=900;
+      // phase 1: tokens fly from each DC to its owner's tally
+      for(const d of S.dcs){ const c=byk[d.k]; if(!c) continue; const n=Math.max(1,Math.round(d.produced/TOK)); const amt=d.produced/n;
+        for(let i=0;i<n;i++){ const t=this.tally(d.owner);
+          q.push({kind:'token',owner:d.owner,amt,color:PHEX[d.owner],dur:FLY,born:Math.random()*2100,
+            sx:c.cx+jit()*14,sy:c.cy+jit()*14,ex:t.x+jit()*70,ey:t.y+jit()*10}); } }
+      // phase 2: money — earned flies INTO the wallet, spent flies OUT of it
+      for(const o of [0,1]){ const w=this.wallet(o);
+        const ne=Math.max(1,Math.round(S.sides[o].earned/CASH)), ae=S.sides[o].earned/ne;
+        for(let i=0;i<ne;i++) q.push({kind:'earn',owner:o,amt:ae,color:'#5be0a8',dur:FLY,born:2200+Math.random()*2000,
+          sx:w.x+jit()*120,sy:w.y+60+jit()*30,ex:w.x+jit()*30,ey:w.y+jit()*12});
+        const ns=Math.max(1,Math.round(S.sides[o].spent/CASH)), as=S.sides[o].spent/ns;
+        for(let i=0;i<ns;i++) q.push({kind:'spend',owner:o,amt:as,color:'#e07a6a',dur:FLY,born:2200+Math.random()*2000,
+          sx:w.x+jit()*24,sy:w.y+jit()*12,ex:w.x+jit()*90,ey:w.y-70+jit()*30}); }
+      q.sort((a,b)=>a.born-b.born);
+      this._spawn=q; this._t0=0;
+      this._raf=requestAnimationFrame(this._recapTick.bind(this));
+    },
+    _recapTick(ts){
+      if(!this._t0) this._t0=ts; const t=ts-this._t0;
+      while(this._spawn.length && this._spawn[0].born<=t){ const p=this._spawn.shift(); p.id=++this._pid; p.startT=t; p.t=0; p.x=p.sx; p.y=p.sy; this.resultsParticles.push(p); }
+      const alive=[];
+      for(const p of this.resultsParticles){
+        const k=Math.min(1,(t-p.startT)/p.dur), e=1-Math.pow(1-k,3);
+        p.x=p.sx+(p.ex-p.sx)*e; p.y=p.sy+(p.ey-p.sy)*e; p.t=k;
+        if(k>=1){ if(p.kind==='token') this.tokensShown[p.owner]+=p.amt;
+          else if(p.kind==='earn') this.earnedShown[p.owner]+=p.amt;
+          else this.spentShown[p.owner]+=p.amt; }
+        else alive.push(p);
+      }
+      this.resultsParticles=alive;
+      if(this._spawn.length || alive.length){ this._raf=requestAnimationFrame(this._recapTick.bind(this)); }
+      else { this.tokensShown=this.v.summary.sides.map(s=>s.tokens); this.earnedShown=this.v.summary.sides.map(s=>s.earned); this.spentShown=this.v.summary.sides.map(s=>s.spent); this._raf=null; }
+    },
+    downloadGame(){
+      if(!this.match) return;
+      const report={
+        report_type:'hyperscale_game', downloaded:new Date().toISOString(),
+        note:(this.bugNote||'').trim(), browser:navigator.userAgent,
+        ...this.match.exportGame(),
+      };
+      const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`hyperscale-day${report.day}-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    },
+    endDay(){ if(this.match.humanAct({a:"pass"})) this.sync(); },
+  },
+}).mount("#app");
+</script>
+</body>
+</html>
