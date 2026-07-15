@@ -1,0 +1,16 @@
+{
+  "name": "HYPERSCALE",
+  "short_name": "HYPERSCALE",
+  "id": "/hyperscale.html",
+  "description": "AI-datacenter economy strategy game — wire datacenters to scarce shared power, equip them from a finite market, and out-produce your rival. Vs AI or online multiplayer.",
+  "start_url": "./hyperscale.html",
+  "scope": "./hyperscale.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1320",
+  "theme_color": "#0f1320",
+  "icons": [
+    {"src": "hs-icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "hs-icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

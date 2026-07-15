@@ -1,0 +1,16 @@
+{
+  "name": "Playground Games",
+  "short_name": "Games",
+  "id": "/",
+  "description": "Three strategy games in one app — FACET, BACKBONE, and HYPERSCALE. Pick a game to play vs AI or online.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1320",
+  "theme_color": "#0f1320",
+  "icons": [
+    {"src": "hub-icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "hub-icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0f1320" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="icon" type="image/png" href="favicon.png" />
+<title>FACET</title>
+<script src="facet_engine.js"></script>
+<script src="adapter.js"></script>
+<script src="vue.global.prod.js"></script>
+<style>
+  :root{
+    --bg:#0f1320; --panel:#171c2e; --ink:#e7ecf5; --muted:#8b95ad;
+    --F:#2a3147; --R:#2d5fa6; --B:#2f8f5b; --N:#c4772a; --T:#caa12e;
+    --p0:#f4f6fb; --p1:#10131c; --hl:#5be0a8; --sel:#ffd84d; --last:#7aa2ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:980px;margin:0 auto;padding:20px}
+  h1{font-weight:800;letter-spacing:3px;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
+  .layout{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .boardwrap{background:var(--panel);padding:14px;border-radius:14px;
+             box-shadow:0 10px 40px #0008;max-width:100%}
+  .grid{display:grid;gap:var(--gap);--cell:58px;--gap:4px}
+  .cell{position:relative;border-radius:9px;display:flex;align-items:center;
+        justify-content:center;cursor:default;user-select:none;
+        transition:transform .07s, box-shadow .12s}
+  .cell .feat{position:absolute;font-size:32px;line-height:1;color:#ffffff99;
+        pointer-events:none;font-weight:400}
+  .cell .featlabel{position:absolute;top:3px;left:5px;font-size:9px;font-weight:800;
+        color:#ffffff66;letter-spacing:1px;pointer-events:none}
+  .cell .coordlabel{position:absolute;bottom:2px;right:4px;font-size:9px;font-weight:700;
+        color:#ffffffaa;pointer-events:none;font-family:ui-monospace,monospace;z-index:3}
+  .cell.F{background:var(--F)} .cell.R{background:var(--R)}
+  .cell.B{background:var(--B)} .cell.N{background:var(--N)}
+  .cell.T{background:var(--T)}
+  .cell.throne{outline:2px solid #ffe9a8aa}
+  .cell.legal{cursor:pointer;box-shadow:inset 0 0 0 3px var(--hl)}
+  .cell.legal:hover{transform:scale(1.04)}
+  .cell.sel{box-shadow:inset 0 0 0 3px var(--sel)}
+  .cell.last{box-shadow:inset 0 0 0 3px var(--last);
+        animation:fadeHighlight 5s ease-out forwards}
+  .cell.target::after{content:"";position:absolute;width:16px;height:16px;
+        border-radius:50%;background:var(--hl);opacity:.55}
+  .piece{width:40px;height:40px;border-radius:50%;display:flex;
+        align-items:center;justify-content:center;font-size:33px;line-height:1;
+        z-index:2;position:relative}
+  .piece .momo{position:absolute;top:-6px;right:-7px;font-size:13px;line-height:1;
+        background:#0c1020;color:#ffd84d;border:1px solid #ffd84d88;
+        border-radius:50%;width:18px;height:18px;display:flex;
+        align-items:center;justify-content:center;pointer-events:none}
+  .piece .pi{filter:drop-shadow(0 1px 1px #0006);
+        display:block;transform:translateY(-2px)}
+  /* white stones: dark icon on light disc with subtle dark ring */
+  .piece.p0{background:radial-gradient(circle at 32% 30%,#fff,#c7cede);color:#10131c;
+        box-shadow:0 0 0 2px #00000040,0 3px 7px #0009}
+  .piece.p1{background:radial-gradient(circle at 32% 30%,#7882a8,#2a304a);color:#f0f4ff;
+        box-shadow:0 0 0 2.5px #c0caee,0 3px 7px #0009}
+  .piece.mine{cursor:pointer}
+  .piece.mine:hover{filter:brightness(1.08)}
+  .piece.crown{box-shadow:0 0 0 3px var(--sel),0 3px 8px #000a}
+  .side{flex:1;min-width:260px}
+  .card{background:var(--panel);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{background:#243049;color:var(--ink);border:1px solid #33415f;
+        padding:8px 12px;border-radius:9px;cursor:pointer;font-weight:600}
+  button:hover{background:#2c3a58}
+  button.primary{background:var(--hl);color:#06281c;border-color:transparent}
+  select{background:#243049;color:var(--ink);border:1px solid #33415f;
+        padding:7px;border-radius:8px}
+  .turn{font-weight:700}
+  .legend div{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+  .sw{width:20px;height:20px;border-radius:5px;flex:none}
+  .status{font-size:15px;min-height:22px}
+  .win{font-size:20px;font-weight:800}
+  .muted{color:var(--muted);font-size:13px;line-height:1.5}
+  .thinking{color:var(--hl)}
+  kbd{background:#0c1020;border:1px solid #33415f;border-radius:5px;padding:1px 6px;font-size:12px}
+  .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);
+        background:#c0392b;color:#fff;padding:12px 20px;border-radius:10px;
+        font-size:14px;font-weight:600;z-index:100;box-shadow:0 6px 24px #000a;
+        max-width:90vw;text-align:center;
+        animation:toastIn .25s ease-out}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-12px)}
+        to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  .dlbtn{background:none;border:1px solid #33415f;color:var(--muted);font-size:12px;
+        padding:4px 10px;border-radius:6px;cursor:pointer}
+  .dlbtn:hover{background:#243049;color:var(--ink)}
+  .helpbtn{background:none;border:1px solid #33415f;width:32px;height:32px;
+        border-radius:50%;font-size:16px;font-weight:800;padding:0;display:flex;
+        align-items:center;justify-content:center;flex:none;color:var(--muted)}
+  .helpbtn:hover{background:#243049;color:var(--ink)}
+  .helpbtn.active{background:var(--hl);color:#06281c;border-color:transparent}
+  .rules{line-height:1.65}
+  .rules h3{margin:14px 0 4px;font-size:14px;color:var(--ink)}
+  .rules h3:first-child{margin-top:0}
+  .rules p,.rules ul{margin:0 0 6px;font-size:13px;color:var(--muted)}
+  .rules ul{padding-left:18px}
+  .rules li{margin:2px 0}
+  .rules b{color:var(--ink)}
+  .rules .tile-ex{display:inline-flex;align-items:center;gap:3px;
+        background:#ffffff12;border-radius:4px;padding:1px 6px;font-size:12px}
+  .rules .tile-ex .sw{width:14px;height:14px;border-radius:3px}
+  /* lobby / my-games rows: middle detail truncates, actions stay visible */
+  .listrow{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px}
+  .listrow .lmain{flex:none;white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+  .listrow .ldetail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .listrow .lact{flex:none;display:flex;align-items:center;gap:6px}
+  .listrow .turnbadge{color:var(--hl);font-weight:700;white-space:nowrap}
+  .cell.fogged{opacity:0.25;pointer-events:none}
+  .cell.fogged .feat,.cell.fogged .featlabel{opacity:0.4}
+  .cell.fogged.hasghost{opacity:0.55}
+  .piece.ghost{opacity:.55;filter:saturate(.3);box-shadow:0 0 0 2px #c0caee55}
+  .toast.info{background:#2d5fa6}
+
+  @keyframes fadeHighlight{
+    0%,60%{box-shadow:inset 0 0 0 3px var(--last)}
+    100%{box-shadow:inset 0 0 0 3px transparent}
+  }
+
+  /* ---- responsive: tablets ---- */
+  @media(max-width:720px){
+    .wrap{padding:12px 8px}
+    .layout{flex-direction:column;align-items:center;gap:14px}
+    .boardwrap{padding:10px;border-radius:10px}
+    .grid{--cell:50px;--gap:3px}
+    .piece{width:34px;height:34px;font-size:27px}
+    .cell .feat{font-size:26px}
+    .cell .featlabel{font-size:8px;top:2px;left:3px}
+    .cell.target::after{width:13px;height:13px}
+    .side{min-width:0;width:100%;max-width:460px}
+    h1{font-size:22px}
+    .sub{font-size:12px;margin-bottom:10px}
+  }
+
+  /* ---- responsive: phones ---- */
+  @media(max-width:480px){
+    .wrap{padding:8px 4px}
+    .grid{--gap:2px}
+    .boardwrap{padding:6px;border-radius:8px;width:100%}
+    .piece{width:calc(var(--cell) * 0.72);height:calc(var(--cell) * 0.72);
+           font-size:calc(var(--cell) * 0.52)}
+    .piece .pi{transform:translateY(-1px)}
+    .cell{border-radius:6px}
+    .cell .feat{font-size:calc(var(--cell) * 0.5)}
+    .cell .featlabel{font-size:7px;top:1px;left:2px}
+    .cell.target::after{width:10px;height:10px}
+    .cell.legal{box-shadow:inset 0 0 0 2px var(--hl)}
+    .cell.sel{box-shadow:inset 0 0 0 2px var(--sel)}
+    .cell.last{box-shadow:inset 0 0 0 2px var(--last);
+          animation:fadeHighlightSm 5s ease-out forwards}
+    @keyframes fadeHighlightSm{
+      0%,60%{box-shadow:inset 0 0 0 2px var(--last)}
+      100%{box-shadow:inset 0 0 0 2px transparent}
+    }
+    .cell.throne{outline-width:1px}
+    .side{max-width:100%}
+    .card{padding:10px 12px;margin-bottom:10px;border-radius:8px}
+    h1{font-size:18px;letter-spacing:2px}
+    .sub{font-size:11px;margin-bottom:8px}
+    .legend div{font-size:12px;gap:6px;margin:4px 0}
+    .sw{width:16px;height:16px;border-radius:4px}
+    button{padding:10px 14px;font-size:14px}
+    select{padding:8px;font-size:14px}
+    .status{font-size:13px}
+    .win{font-size:17px}
+    .turn{font-size:14px}
+    .muted{font-size:12px}
+  }
+
+  /* ---- responsive: very small phones ---- */
+  @media(max-width:360px){
+    .grid{--gap:1px}
+    .boardwrap{padding:4px}
+  }
+
+  /* prevent iOS double-tap zoom on game area */
+  .boardwrap{touch-action:manipulation}
+  .cell{touch-action:manipulation}
+  .piece{touch-action:manipulation}
+</style>
+</head>
+<body>
+<div id="app" class="wrap">
+  <div class="toast" v-if="errorMsg">{{ errorMsg }}</div>
+  <div class="toast info" v-if="noticeMsg">{{ noticeMsg }}</div>
+  <h1>F A C E T</h1>
+  <p class="sub">Your tile grants your move. Hold both thrones — or capture the enemy monarch.
+     <a href="./" style="color:var(--hl);margin-left:8px" title="All games">⊞ Games</a>
+     <a href="backbone.html" style="color:var(--hl);margin-left:8px" title="Network-building hex strategy">BACKBONE →</a>
+     <a href="hyperscale.html" style="color:var(--hl);margin-left:8px" title="AI-datacenter economy — vs AI or online multiplayer">HYPERSCALE →</a>
+     <span v-if="adapterMode==='local'" style="opacity:.5">(offline mode)</span></p>
+
+  <div class="layout">
+    <div class="boardwrap">
+      <div class="grid" :style="gridStyle">
+        <template v-for="cell in cellsInDisplayOrder" :key="cell.k">
+          <div :class="cellClass(cell)" @click="onCellClick(cell)">
+            <span class="featlabel" v-if="cell.g!=='F'">{{ cell.g }}</span>
+            <span class="coordlabel" v-if="showCoords">{{ cell.x }},{{ cell.y }}</span>
+            <span class="feat" v-if="featIcon(cell.g)">{{ featIcon(cell.g) }}</span>
+            <div v-if="cell.piece"
+                 :class="pieceClass(cell)"
+                 @click.stop="onPieceClick(cell)"
+                 :title="pieceTitle(cell)">
+              <span class="pi">{{ pieceIcon(cell) }}</span>
+              <span class="momo" v-if="momentumAt(cell)"
+                    :title="'Retained rank: one more move as ' + momentumAt(cell)">{{ featIcon(momentumAt(cell)) }}</span>
+            </div>
+            <div v-else-if="ghostAt(cell)" :class="['piece', aiSide===0?'p0':'p1', 'ghost']"
+                 title="Enemy last seen here — may have moved">
+              <span class="pi">{{ ghostAt(cell).monarch ? '♚' : '?' }}</span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <span class="turn" v-html="turnLabel"></span>
+          <span class="thinking" v-if="aiThinking">AI thinking…</span>
+        </div>
+        <div class="status" v-html="statusLine"></div>
+        <div v-if="winner!==null" class="win">{{ winnerText }}
+          <span v-if="gameMeta && gameMeta.your_rating_change!==undefined"
+                :style="{fontSize:'14px', color: gameMeta.your_rating_change>=0?'var(--hl)':'#e07a6a'}">
+            {{ gameMeta.your_rating_change>=0?'+':'' }}{{ gameMeta.your_rating_change }} rating
+          </span>
+        </div>
+
+        <!-- AI offers a draw -->
+        <div v-if="aiDrawOffer && winner===null" style="margin-top:8px">
+          <span class="muted">The AI offers a draw.</span>
+          <button style="margin-left:8px" @click="acceptAiDraw">Accept</button>
+          <button style="margin-left:4px" @click="aiDrawOffer=false">Decline</button>
+        </div>
+
+        <!-- PvP: opponent offers a draw -->
+        <div v-if="incomingDraw" style="margin-top:8px">
+          <span class="muted">{{ opponentName }} offers a draw.</span>
+          <button style="margin-left:8px" @click="answerDraw('accept')">Accept</button>
+          <button style="margin-left:4px" @click="answerDraw('decline')">Decline</button>
+        </div>
+        <div v-if="outgoingDraw" class="muted" style="margin-top:8px">
+          Draw offer sent — waiting for {{ opponentName }}.
+        </div>
+
+        <!-- Human offers a draw / resigns -->
+        <div v-if="winner===null && !aiDrawOffer && !incomingDraw && !outgoingDraw && toMove===humanSide && !busy" style="margin-top:8px">
+          <button class="dlbtn" @click="offerDraw" :disabled="drawBusy">Offer draw</button>
+          <button class="dlbtn" v-if="isOnline && gameMeta" @click="resign" style="margin-left:6px">Resign</button>
+          <span v-if="drawResponse" class="muted" style="margin-left:8px">{{ drawResponse }}</span>
+        </div>
+      </div>
+
+      <!-- account (server mode only) -->
+      <div class="card" v-if="isOnline && me && me.player">
+        <div class="row" style="justify-content:space-between">
+          <span style="font-size:14px">
+            <b>{{ me.player.name }}</b>
+            <span class="muted" v-if="me.player.is_guest">(guest — casual games only)</span>
+            <span class="muted" v-else>
+              · {{ me.player.ratings.facet.rating }}
+              <b v-if="me.player.ratings.facet.rank!=='Unranked'" style="color:var(--sel)">{{ me.player.ratings.facet.rank }}</b>
+              <span v-else>({{ me.player.ratings.facet.rated_games }}/10 placement)</span>
+            </span>
+          </span>
+          <span class="row" style="gap:6px">
+            <a v-if="me.is_admin" href="admin.html" class="dlbtn"
+               style="text-decoration:none">Admin</a>
+            <button class="dlbtn" v-if="me.player.is_guest" @click="authForm=authForm==='claim'?null:'claim'">Claim account</button>
+            <button class="dlbtn" v-if="me.player.is_guest" @click="authForm=authForm==='login'?null:'login'">Login</button>
+            <button class="dlbtn" v-if="!me.player.is_guest" @click="authForm=authForm==='rename'?null:'rename';authName=''" title="Change your name">✎</button>
+            <button class="dlbtn" @click="toggleLeaderboard">Ranks</button>
+            <button class="dlbtn" v-if="!me.player.is_guest" @click="doLogout">Logout</button>
+          </span>
+        </div>
+        <div v-if="authForm" style="margin-top:8px">
+          <div class="row" style="gap:6px">
+            <input v-model="authName" :placeholder="authForm==='rename'?'new name':'name'"
+                   @keyup.enter="authForm==='rename'&&submitAuth()"
+                   style="flex:1;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
+            <input v-if="authForm!=='rename'" v-model="authPass" type="password" placeholder="password" @keyup.enter="submitAuth"
+                   style="flex:1;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
+            <button @click="submitAuth" :disabled="authBusy">{{ authForm==='login'?'Login':authForm==='claim'?'Claim':authForm==='rename'?'Rename':'Register' }}</button>
+          </div>
+          <div class="muted" style="margin-top:4px" v-if="authForm==='login'">
+            No account yet? <a href="#" @click.prevent="authForm='register'" style="color:var(--hl)">Register</a>
+          </div>
+        </div>
+        <div v-if="lbOpen" style="margin-top:8px">
+          <div v-if="!lbRows.length" class="muted">No rated games played yet.</div>
+          <div v-for="row in lbRows" :key="row.name" class="row"
+               style="justify-content:space-between;font-size:13px;margin:2px 0">
+            <span><span class="muted">{{ row.pos }}.</span> <b>{{ row.name }}</b>
+              <span class="muted" v-if="row.rank!=='Unranked'">· {{ row.rank }}</span>
+              <span class="muted" v-else>· placement</span></span>
+            <span>{{ row.rating }} <span class="muted">({{ row.rated_games }})</span></span>
+          </div>
+        </div>
+        <div v-if="recoveryCode" style="margin-top:8px;padding:8px;background:#0c1020;border-radius:8px;font-size:13px">
+          Your recovery code (store it — it is shown only once):
+          <b style="color:var(--sel)">{{ recoveryCode }}</b>
+          <button class="dlbtn" style="margin-left:8px" @click="recoveryCode=null">Got it</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:6px">
+          <label class="muted">Mode</label>
+          <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" v-model="modeDecay" :disabled="modeMomentum"> Terrain decay
+          </label>
+          <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" v-model="modeFog" :disabled="modeMomentum"> Fog of war
+          </label>
+          <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" v-model="modeMomentum" :disabled="modeDecay||modeFog"> Momentum
+          </label>
+        </div>
+        <div class="row">
+          <label class="muted">Board</label>
+          <select v-model="boardId">
+            <option v-for="(b,id) in filteredBoards" :key="id" :value="id">{{ b.name }}</option>
+          </select>
+        </div>
+        <div class="muted" style="margin:4px 0 8px" v-if="boards[boardId]">{{ boards[boardId].desc }}</div>
+        <div class="row" style="margin-bottom:6px">
+          <label class="muted">Play as</label>
+          <select v-model="sideChoice">
+            <option value="0">White (moves first)</option>
+            <option value="1">Black (moves second)</option>
+            <option value="random">Random</option>
+          </select>
+        </div>
+        <div class="row">
+          <label class="muted">Difficulty</label>
+          <select v-model="difficulty">
+            <option value="easy">Easy</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard (slow)</option>
+          </select>
+          <button class="primary" @click="newGame">New game</button>
+          <button :class="['helpbtn', {active:showRules}]" @click="showRules=!showRules" title="Rules &amp; help">?</button>
+        </div>
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;margin-top:6px">
+          <input type="checkbox" :checked="showCoords" @change="toggleCoords"> Show square coordinates
+        </label>
+        <div class="row" v-if="isOnline" style="margin-top:6px">
+          <button class="dlbtn" @click="postSeek"
+                  title="Offer this board + modes to other players">Offer to players</button>
+          <label v-if="me && me.player && !me.player.is_guest"
+                 style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" v-model="seekRated"> Rated
+          </label>
+        </div>
+      </div>
+
+      <!-- lobby + my games (server mode only) -->
+      <div class="card" v-if="isOnline && (lobbySeeks.length || myGames.length>0)">
+        <div v-if="myGames.length">
+          <b style="font-size:13px">My games</b>
+          <div v-for="g in myGames" :key="g.id" class="listrow">
+            <a href="#" class="lmain" @click.prevent="openGame(g.id)"
+               :style="{color: g.id===id ? 'var(--sel)' : 'var(--hl)'}">
+              vs {{ g.opponent }}</a>
+            <span class="ldetail muted" :title="gameTitle(g)">
+              {{ boards[g.board] ? boards[g.board].name : g.board }} {{ modeIcons(g.modes) }}
+              · {{ g.ply }}mv · {{ ago(g.created_at) }}</span>
+            <span class="lact">
+              <b v-if="g.your_turn" class="turnbadge">your turn</b>
+              <span v-else class="muted" style="white-space:nowrap">waiting</span>
+              <button class="dlbtn" style="padding:2px 8px" @click="endGame(g)"
+                      :title="g.type==='ai' ? 'End this AI game' : 'End this game'">✕</button>
+            </span>
+          </div>
+        </div>
+        <div v-if="lobbySeeks.length" :style="{marginTop: myGames.length?'8px':'0'}">
+          <b style="font-size:13px">Open games</b>
+          <div v-for="s in lobbySeeks" :key="s.id" class="listrow">
+            <span class="lmain">{{ s.mine ? 'Your offer' : s.player }}
+              <span v-if="!s.mine && !s.is_guest" class="muted">({{ s.rating }})</span></span>
+            <span class="ldetail muted" :title="seekTitle(s)">
+              {{ boards[s.board] ? boards[s.board].name : s.board }}
+              · {{ modeNames(s.modes) }}
+              · {{ s.mine ? 'you play '+s.side_pref
+                          : (s.you_play==='random' ? 'random sides' : "you'd play "+s.you_play) }}
+              <span v-if="s.direct">(challenge)</span></span>
+            <span class="lact">
+              <b v-if="s.rated" style="color:var(--sel);font-size:11px">RATED</b>
+              <button class="dlbtn" v-if="s.mine" @click="dropSeek(s.id)">Cancel</button>
+              <button class="dlbtn" v-else @click="takeSeek(s.id)">Play</button>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card rules" v-show="showRules">
+        <h3>Objective</h3>
+        <p>Win by <b>Regicide</b> (capture the enemy ♚ Monarch),
+           <b>Coronation</b> (hold <b>all</b> Throne tiles for a full round — your opponent
+           gets one chance to contest before you win),
+           or <b>Elimination</b> (capture all enemy agents, leaving a bare monarch).</p>
+        <p>The game is a <b>draw</b> if the side to move has no legal moves (stalemate),
+           or by <b>mutual agreement</b> — either side can offer a draw, and the
+           opponent may accept or decline.</p>
+
+        <h3>Terrain tiles</h3>
+        <p>A stone's move is granted by the <b>tile it stands on</b> — not by the piece itself.
+           Moving to a different tile type changes what you can do next turn.</p>
+        <ul>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--F)"></span> <b>•</b> Field</span>
+              — step 1 square in any direction (8 neighbours)</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--R)"></span> <b>♜</b> Tower</span>
+              — slide any distance horizontally or vertically (rook)</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--B)"></span> <b>♝</b> Spire</span>
+              — slide any distance diagonally (bishop)</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--N)"></span> <b>♞</b> Gate</span>
+              — leap in an L-shape, 2+1 squares (knight); jumps over pieces</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--T)"></span> <b>♛</b> Throne</span>
+              — slide any distance in all 8 directions (queen) + win objective</li>
+        </ul>
+
+        <h3>The Monarch ♚</h3>
+        <p>Each side has one Monarch (center of the back row). The Monarch <b>ignores terrain</b>
+           — it always moves exactly 1 step in any direction, regardless of the tile
+           it stands on. Losing your Monarch loses the game.</p>
+
+        <h3>Capture</h3>
+        <p>Land on an enemy stone to capture it (remove it from the board).
+           You may <b>not</b> land on your own stones. Sliders (Tower, Spire, Throne) are
+           <b>blocked</b> by any piece in their path — they stop on or before it.
+           The Gate <b>leaps</b> over everything.</p>
+
+        <h3>Optional modes</h3>
+        <p><b>Terrain decay</b> — when a stone leaves a special tile, the tile
+           degrades one tier (Tower → Spire → Gate → Field). Thrones never decay.
+           Power is a resource: every slide spends the tile you left.</p>
+        <p><b>Fog of war</b> — you see only around your own stones
+           (radius 2, monarch radius 3). Thrones are always visible.
+           Enemy stones you spotted earlier linger as faded <b>ghosts</b> where
+           you last saw them — they may have moved since. If your slider runs
+           into a hidden enemy mid-path, you <b>bump</b>: the slide stops there
+           and captures it. The AI plays under the same fog, with the same
+           kind of memory you have.</p>
+        <p><b>Momentum</b> — a stone that leaves a special tile keeps that
+           tile's rank for <b>one more move</b>, on top of what its new tile
+           grants. The retained rank shows as a small badge on the stone (for
+           both sides — it's public information) and expires after the next
+           move. Leaving a Throne keeps the queen-slide for a move, so
+           throne raids have an exit. Not combinable with decay or fog.</p>
+
+        <h3>How to play</h3>
+        <p>Choose your side before starting: <b>white moves first</b> — first
+           move is a real advantage, so playing black is the harder game
+           (Random keeps you honest). Your stones always start at the bottom.
+           Tap/click a stone to select it — legal destinations light up green.
+           Tap a green square to move. The AI plays the other side automatically.</p>
+        <p>Each stone's icon shows the move it currently has (from its tile).
+           The faint watermark on each tile shows which move that tile grants.</p>
+      </div>
+
+      <div class="card legend" v-show="!showRules">
+        <div><span class="sw" style="background:var(--F)"></span> <b>•</b>&nbsp; Field — step 1</div>
+        <div><span class="sw" style="background:var(--R)"></span> <b>♜</b>&nbsp; Tower — rook slide</div>
+        <div><span class="sw" style="background:var(--B)"></span> <b>♝</b>&nbsp; Spire — bishop slide</div>
+        <div><span class="sw" style="background:var(--N)"></span> <b>♞</b>&nbsp; Gate — knight leap</div>
+        <div><span class="sw" style="background:var(--T)"></span> <b>♛</b>&nbsp; Throne — queen slide</div>
+        <div style="margin-top:4px"><span class="sw" style="background:#56608a"></span> <b>♚</b>&nbsp; Monarch — always step 1</div>
+      </div>
+
+      <div class="card" v-if="lastInfo">
+        <div class="muted">AI last search — depth {{lastInfo.depth}},
+          {{lastInfo.nodes.toLocaleString()}} nodes, eval {{lastInfo.score}}</div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <b style="font-size:13px">Bug report</b>
+          <span class="muted">{{ eventLog.length }} events logged</span>
+        </div>
+        <textarea v-model="bugDescription" rows="3"
+                  placeholder="Describe what went wrong or looked off…"
+                  style="width:100%;resize:vertical;background:#0c1020;color:var(--ink);
+                         border:1px solid #33415f;border-radius:8px;padding:8px;
+                         font-size:13px;font-family:inherit"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="dlbtn" v-if="isOnline" @click="submitReport"
+                  :disabled="reportBusy">Submit to server</button>
+          <button class="dlbtn" @click="downloadLog">Download full report</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+createApp({
+  data(){return{
+    adapter:null, adapterMode:'detecting...',
+    id:null, state:null, difficulty:"normal", boardId:"classic",
+    boards:{}, modeDecay:false, modeFog:false, modeMomentum:false,
+    sideChoice:'0',          // '0' white, '1' black, 'random'
+    humanSide:0,             // actual side in the current game
+    me:null,                 // {player, stats, active_games} when online
+    gameMeta:null,           // v1 meta for the open game (null in offline mode)
+    gameV:-1, _pollSeq:0,    // long-poll version cursor + loop guard
+    lobbySeeks:[], myGames:[], _lobbyTimer:null, _seenGames:{}, hadSeek:false,
+    authForm:null,           // null | 'login' | 'register' | 'claim' | 'rename'
+    authName:'', authPass:'', authBusy:false,
+    recoveryCode:null,       // shown once after register/claim
+    seekRated:false, lbOpen:false, lbRows:[],
+    selected:null,           // [x,y] of selected piece
+    targets:[],              // list of [x,y] legal destinations for selected
+    lastMove:null,           // [[x,y],[x,y]]
+    aiThinking:false, lastInfo:null, busy:false,
+    showRules:false, _lastTimer:null,
+    errorMsg:null, _errTimer:null,
+    noticeMsg:null, _noticeTimer:null,
+    ghosts:{},               // fog: last-seen enemy pieces, key "x,y"
+    eventLog:[],
+    aiDrawOffer:false, drawBusy:false, drawResponse:null,
+    bugDescription:'', reportBusy:false,
+    showCoords: localStorage.getItem("facet_showCoords")==="1",
+  }},
+  computed:{
+    filteredBoards(){
+      const out={};
+      for(const id in this.boards){
+        const b=this.boards[id];
+        if(this.modeDecay && !b.supports_decay) continue;
+        if(this.modeFog && !b.supports_fog) continue;
+        if(this.modeMomentum && !b.supports_momentum) continue;
+        // no mode selected: only boards balanced for plain play
+        if(!this.modeDecay && !this.modeFog && !this.modeMomentum
+           && b.supports_classic===false) continue;
+        out[id]=b;
+      }
+      return out;
+    },
+    aiSide(){ return this.humanSide^1; },
+    isOnline(){ return !!(this.adapter && this.adapter.online); },
+    isPvp(){ return !!(this.gameMeta && this.gameMeta.type==='pvp'); },
+    opponentName(){
+      if(!this.gameMeta) return 'AI';
+      return this.humanSide===0 ? this.gameMeta.black : this.gameMeta.white;
+    },
+    incomingDraw(){
+      return this.isPvp && this.gameMeta.status==='active'
+        && this.gameMeta.draw_offer_by!==null
+        && this.gameMeta.draw_offer_by!==this.humanSide;
+    },
+    outgoingDraw(){
+      return this.isPvp && this.gameMeta.status==='active'
+        && this.gameMeta.draw_offer_by===this.humanSide;
+    },
+    activeModes(){
+      const m=[];
+      if(this.modeDecay) m.push('decay');
+      if(this.modeFog) m.push('fog');
+      if(this.modeMomentum) m.push('momentum');
+      return m;
+    },
+    fogActive(){ return this.state && this.state.modes && this.state.modes.includes('fog'); },
+    visibleSet(){
+      if(!this.fogActive || !this.state) return null;
+      // In fog mode, any cell that has one of our pieces nearby is visible
+      // We compute this client-side from the pieces WE can see (which are already fog-filtered)
+      const vis=new Set();
+      for(const k in this.state.pieces){
+        const p=this.state.pieces[k];
+        if(p.owner!==this.humanSide)continue;
+        const[cx,cy]=k.split(',').map(Number);
+        const r=p.monarch?3:2;
+        for(let dx=-r;dx<=r;dx++)for(let dy=-r;dy<=r;dy++){
+          if(Math.abs(dx)+Math.abs(dy)<=r) vis.add((cx+dx)+','+(cy+dy));
+        }
+      }
+      // thrones always visible
+      if(this.state.thrones) for(const[x,y]of this.state.thrones) vis.add(x+','+y);
+      return vis;
+    },
+    W(){ return this.state ? this.state.W : 7; },
+    H(){ return this.state ? this.state.H : 7; },
+    winner(){ return this.state ? this.state.winner : null; },
+    toMove(){ return this.state ? this.state.to_move : 0; },
+    gridStyle(){
+      const mob = window.innerWidth <= 480;
+      const cell = mob ? `calc((100vw - 40px) / ${this.W})` : (this.W > 7 ? '48px' : '58px');
+      return {
+        'grid-template-columns': `repeat(${this.W}, var(--cell, ${cell}))`,
+        'grid-template-rows': `repeat(${this.H}, var(--cell, ${cell}))`,
+        '--cell': cell,
+      };
+    },
+    cellsInDisplayOrder(){
+      if(!this.state) return [];
+      const out=[];
+      const flip=this.humanSide===1;  // human always sees their side at the bottom
+      const ys=[],xs=[];
+      for(let y=0;y<this.H;y++) ys.push(flip?y:this.H-1-y);
+      for(let x=0;x<this.W;x++) xs.push(flip?this.W-1-x:x);
+      for(const y of ys) for(const x of xs){
+        const k=`${x},${y}`;
+        out.push({k, x, y, g:this.state.terrain[k],
+                  piece:this.state.pieces[k]||null});
+      }
+      return out;
+    },
+    turnLabel(){
+      if(this.winner!==null) return "Game over";
+      const you=this.humanSide===0?'white':'black';
+      const opp=this.isPvp?this.opponentName:'AI';
+      return this.toMove===this.humanSide ? `Your move (${you})`
+                                          : `${opp} to move…`;
+    },
+    statusLine(){
+      if(!this.state) return "";
+      if(this.winner!==null) return "";
+      const t=this.state.thrones.map(([x,y])=>{
+        const occ=this.state.pieces[`${x},${y}`];
+        return occ? (occ.owner===this.humanSide?'●':'○') : '·';
+      }).join(' ');
+      return `Thrones: <b>${t}</b> &nbsp;<span class="muted">(hold both at the start of your turn to win)</span>`;
+    },
+    winnerText(){
+      const wt=this.gameMeta&&this.gameMeta.win_type?` — by ${this.gameMeta.win_type}`:'';
+      const w=(this.gameMeta&&this.gameMeta.status==='finished')?this.gameMeta.winner:this.winner;
+      if(w==='draw') return `Draw${wt||'.'}`;
+      const you=this.humanSide===0?'White':'Black';
+      const opp=this.isPvp?this.opponentName:'AI';
+      if(w===this.humanSide||w===String(this.humanSide)) return `${you} (you) win${wt}! ♛`;
+      if(w!==null&&w!==undefined) return `${opp} wins${wt}.`;
+      return "";
+    },
+  },
+  methods:{
+    logEvent(kind, detail={}){
+      this.eventLog.push({t:new Date().toISOString(), event:kind, ...detail});
+    },
+    showError(msg){
+      this.errorMsg=msg;
+      if(this._errTimer) clearTimeout(this._errTimer);
+      this._errTimer=setTimeout(()=>{ this.errorMsg=null; },6000);
+      this.logEvent('error',{msg});
+    },
+    showNotice(msg){
+      this.noticeMsg=msg;
+      if(this._noticeTimer) clearTimeout(this._noticeTimer);
+      this._noticeTimer=setTimeout(()=>{ this.noticeMsg=null; },5000);
+    },
+    ghostAt(c){
+      if(!this.fogActive || c.piece) return null;
+      return this.ghosts[c.x+','+c.y] || null;
+    },
+    momentumAt(c){
+      if(!this.state || !this.state.momentum || !c.piece) return null;
+      const g=this.state.momentum[c.x+','+c.y];
+      return (g && g!==this.state.terrain[c.x+','+c.y]) ? g : null;
+    },
+    updateGhosts(){
+      if(!this.fogActive || !this.state){ this.ghosts={}; return; }
+      const vis=this.visibleSet;
+      const g={...this.ghosts};
+      for(const k in this.state.pieces){
+        const p=this.state.pieces[k];
+        if(p.owner===this.aiSide) g[k]=p;
+      }
+      for(const k in g){
+        const cur=this.state.pieces[k];
+        if(cur && cur.owner===this.aiSide) continue;  // still visible there
+        if(vis && vis.has(k)) delete g[k];            // visible and gone
+      }
+      this.ghosts=g;
+    },
+    async _call(fn){
+      try{ const r=await fn(); if(r&&r.error)this.showError(r.error); return r;
+      }catch(e){ this.showError(e.message); return{error:e.message}; }
+    },
+    _resetGameUi(){
+      this.selected=null; this.targets=[]; this.lastMove=null;
+      this.lastInfo=null; this.aiThinking=false; this.errorMsg=null;
+      this.eventLog=[]; this.aiDrawOffer=false; this.drawResponse=null;
+      this.bugDescription=''; this.ghosts={}; this.noticeMsg=null;
+      this.gameMeta=null; this.gameV=-1; this._pollSeq++;
+    },
+    applyGame(r){
+      if(r.meta){
+        this.gameMeta=r.meta;
+        if(r.meta.your_side===0||r.meta.your_side===1) this.humanSide=r.meta.your_side;
+      }
+      if(r.v!==undefined) this.gameV=r.v;
+      if(r.state) this.state=r.state;
+      // keep the open game's list row in sync without waiting for the poll
+      const mg=this.myGames.find(x=>x.id===this.id);
+      if(mg && this.state){
+        mg.your_turn=this.state.winner===null && this.state.to_move===this.humanSide;
+        if(this.gameMeta) mg.ply=this.gameMeta.ply;
+      }
+    },
+    async newGame(){
+      this.busy=true; this._resetGameUi();
+      const side = this.sideChoice==='random' ? (Math.random()<0.5?0:1) : Number(this.sideChoice);
+      const r = await this._call(()=>this.adapter.newGame(this.boardId,this.difficulty,this.activeModes,side));
+      if(r.error) { this.busy=false; return; }
+      this.id=r.id;
+      this.humanSide=(r.human_side===1)?1:0;
+      this.applyGame(r);
+      if(!r.meta) this.state=r.state;
+      this.busy=false;
+      this.logEvent('new_game',{id:r.id, difficulty:this.difficulty, board:this.boardId, human_side:this.humanSide});
+      this.refreshLobby();
+      if(this.state.winner===null && this.state.to_move===this.aiSide){
+        await this.aiTurn();
+      }
+    },
+    async openGame(id){
+      this.busy=true; this._resetGameUi();
+      const r=await this._call(()=>this.adapter.state(id));
+      if(r.error){ this.busy=false; return; }
+      this.id=id;
+      this.applyGame(r);
+      this._seenGames[id]=true;
+      this.busy=false;
+      if(this.isPvp && this.gameMeta.status==='active') this.pvpPoll();
+      else if(this.gameMeta && this.gameMeta.type==='ai'
+              && this.state.winner===null && this.state.to_move===this.aiSide){
+        await this.aiTurn();
+      }
+    },
+    async pvpPoll(){
+      const gid=this.id, seq=++this._pollSeq;
+      while(this.id===gid && this._pollSeq===seq
+            && this.isPvp && this.gameMeta.status==='active'){
+        let r=null;
+        try{ r=await this.adapter.state(gid, this.gameV, true); }
+        catch(e){ /* transient */ }
+        if(this.id!==gid || this._pollSeq!==seq) return;
+        if(!r || r.error){
+          await new Promise(res=>setTimeout(res,3000));
+          continue;
+        }
+        const prevPly=this.gameMeta?this.gameMeta.ply:0;
+        this.applyGame(r);
+        if(this.gameMeta.ply>prevPly && this.state.winner===null){
+          // opponent moved — no from/to in state; flash nothing, ghosts update via watcher
+        }
+        if(this.gameMeta.status!=='active'){
+          this.logEvent('game_over',{winner:this.gameMeta.winner,win_type:this.gameMeta.win_type});
+          this.refreshLobby();
+          return;
+        }
+      }
+    },
+    featIcon(g){ return {R:'♜',B:'♝',N:'♞',T:'♛',F:''}[g] || ''; },
+    pieceIcon(c){
+      if(c.piece.monarch) return '♚';            // monarch ignores terrain
+      const g=this.state.terrain[`${c.x},${c.y}`];
+      return g==='F' ? '•' : this.featIcon(g);   // shows the move it has NOW
+    },
+    pieceTitle(c){
+      if(c.piece.monarch) return 'Monarch — always steps 1 (ignores terrain)';
+      const names={R:'Tower → rook slide',B:'Spire → bishop slide',
+                   N:'Gate → knight leap',T:'Throne → queen slide',
+                   F:'Field → step 1'};
+      return names[this.state.terrain[`${c.x},${c.y}`]];
+    },
+    showLastMove(mv){
+      if(this._lastTimer) clearTimeout(this._lastTimer);
+      this.lastMove=mv;
+      this._lastTimer=setTimeout(()=>{ this.lastMove=null; this._lastTimer=null; },5000);
+    },
+    isThrone(x,y){
+      return this.state && this.state.thrones.some(t=>t[0]===x&&t[1]===y);
+    },
+    legalFrom(x,y){
+      if(!this.state) return [];
+      return this.state.legal.filter(m=>m[0][0]===x&&m[0][1]===y).map(m=>m[1]);
+    },
+    cellClass(c){
+      const cls=['cell',c.g];
+      if(this.isThrone(c.x,c.y)) cls.push('throne');
+      if(this.fogActive && this.visibleSet && !this.visibleSet.has(c.x+','+c.y)){
+        cls.push('fogged');
+        if(this.ghostAt(c)) cls.push('hasghost');
+      }
+      if(this.selected && this.selected[0]===c.x && this.selected[1]===c.y) cls.push('sel');
+      if(this.targets.some(t=>t[0]===c.x&&t[1]===c.y)){ cls.push('legal'); if(!c.piece) cls.push('target'); }
+      if(this.lastMove && this.lastMove.some(p=>p[0]===c.x&&p[1]===c.y)) cls.push('last');
+      return cls;
+    },
+    pieceClass(c){
+      const cls=['piece', c.piece.owner===0?'p0':'p1'];
+      if(c.piece.monarch) cls.push('crown');
+      if(c.piece.owner===this.humanSide && this.toMove===this.humanSide && this.winner===null) cls.push('mine');
+      return cls;
+    },
+    onPieceClick(c){
+      if(this.winner!==null || this.toMove!==this.humanSide || this.busy) return;
+      if(c.piece.owner!==this.humanSide){ return this.onCellClick(c); }
+      this.selected=[c.x,c.y];
+      this.targets=this.legalFrom(c.x,c.y);
+    },
+    async onCellClick(c){
+      if(this.winner!==null || this.busy) return;
+      if(!this.selected) return;
+      const ok=this.targets.some(t=>t[0]===c.x&&t[1]===c.y);
+      if(!ok){ this.selected=null; this.targets=[]; return; }
+      await this.doMove(this.selected, [c.x,c.y]);
+    },
+    async doMove(from,to){
+      this.busy=true;
+      const r=await this._call(()=>this.adapter.move(this.id,from,to));
+      if(r.error){ this.busy=false; this.selected=null; this.targets=[]; return; }
+      this.applyGame(r);
+      const actual=r.move||[from,to];
+      this.showLastMove(actual);
+      if(r.bumped) this.showNotice('Bump! Your slide hit a hidden enemy and captured it where you collided.');
+      this.logEvent('player_move',{from,to:actual[1],requested:to,bumped:!!r.bumped});
+      this.selected=null; this.targets=[];
+      this.busy=false;
+      if(this.state.winner!==null){
+        this.logEvent('game_over',{winner:this.state.winner});
+        this.refreshLobby();
+      } else if(!this.isPvp && this.state.to_move===this.aiSide){
+        await this.aiTurn();
+      }
+      // pvp: the running pvpPoll loop picks up the opponent's reply
+    },
+    async aiTurn(){
+      this.aiThinking=true; this.busy=true;
+      await new Promise(r=>setTimeout(r,50));
+      const r=await this._call(()=>this.adapter.aiMove(this.id));
+      if(r.error){ this.aiThinking=false; this.busy=false; return; }
+      this.applyGame(r);
+      if(r.move){ this.showLastMove(r.move); this.logEvent('ai_move',{move:r.move,info:r.info}); }
+      if(r.info) this.lastInfo=r.info;
+      this.aiThinking=false; this.busy=false;
+      if(this.state.winner!==null){
+        this.logEvent('game_over',{winner:this.state.winner});
+        this.refreshLobby();
+      } else if(r.draw_offer){
+        this.aiDrawOffer=true;
+        this.logEvent('ai_draw_offer');
+      }
+    },
+    async offerDraw(){
+      this.drawBusy=true; this.drawResponse=null;
+      const r=await this._call(()=>this.adapter.offerDraw(this.id));
+      this.drawBusy=false;
+      if(r.error) return;
+      this.applyGame(r);
+      if(this.isPvp){
+        this.logEvent('draw_offer',{by:'human'});
+        return; // opponent will answer; poll loop delivers the outcome
+      }
+      this.drawResponse=r.reason;
+      this.logEvent('draw_offer',{by:'human',accepted:r.accepted,reason:r.reason});
+      if(r.draw_agreed) this.state.winner='draw';
+    },
+    async answerDraw(action){
+      const r=await this._call(()=>this.adapter.drawAction(this.id,action));
+      if(r.error) return;
+      this.applyGame(r);
+      this.logEvent('draw_'+action,{by:'human'});
+    },
+    async acceptAiDraw(){
+      this.aiDrawOffer=false;
+      if(this.adapter.drawAction){
+        const r=await this._call(()=>this.adapter.drawAction(this.id,'accept'));
+        if(!r.error) this.applyGame(r);
+      }
+      this.state.winner='draw';
+      this.logEvent('draw_agreed',{by:'human',proposed_by:'ai'});
+    },
+    async resign(){
+      if(!confirm('Resign this game?')) return;
+      const r=await this._call(()=>this.adapter.resign(this.id));
+      if(r.error) return;
+      this.applyGame(r);
+      this.logEvent('resign',{by:'human'});
+      this.refreshLobby();
+    },
+    // ---- account ----
+    async submitAuth(){
+      if(this.authBusy) return;
+      this.authBusy=true;
+      const name=this.authName.trim(), pass=this.authPass;
+      let r;
+      if(this.authForm==='login') r=await this.adapter.login(name,pass);
+      else if(this.authForm==='register') r=await this.adapter.register(name,pass);
+      else if(this.authForm==='rename') r=await this.adapter.rename(name);
+      else r=await this.adapter.claim(name,pass);
+      this.authBusy=false;
+      if(r.error){ this.showError(r.error); return; }
+      if(r.recovery_code) this.recoveryCode=r.recovery_code;
+      this.authForm=null; this.authName=''; this.authPass='';
+      this.me=await this.adapter.me();
+      this.refreshLobby();
+    },
+    async doLogout(){
+      await this.adapter.logout();
+      this.me=await this.adapter.ensureAuth();
+      this._resetGameUi(); this.id=null; this.state=null;
+      this.newGame();
+    },
+    // ---- lobby ----
+    async refreshLobby(){
+      if(!this.isOnline || !this.me) return;
+      try{
+        const [seeks,games,me]=await Promise.all(
+          [this.adapter.getSeeks(),this.adapter.myGames(),this.adapter.me()]);
+        if(me&&me.player) this.me=me;
+        if(seeks.seeks) this.lobbySeeks=seeks.seeks.filter(s=>!s.game_type||s.game_type==='facet');
+        if(games.games){
+          this.myGames=games.games.filter(g=>!g.game_type||g.game_type==='facet');
+          // a seek of ours got accepted -> a new pvp game appeared: open it,
+          // but never yank the player out of a pvp game they are already in
+          const inActivePvp=this.isPvp && this.gameMeta && this.gameMeta.status==='active';
+          if(this.hadSeek && !this.lobbySeeks.some(s=>s.mine) && !inActivePvp){
+            const fresh=this.myGames.find(g=>g.type==='pvp' && !this._seenGames[g.id]);
+            if(fresh){ this.hadSeek=false; this.openGame(fresh.id); }
+          }
+          for(const g of this.myGames) if(g.id===this.id) this._seenGames[g.id]=true;
+        }
+      }catch(e){}
+    },
+    async postSeek(){
+      const pref=this.sideChoice==='0'?'white':this.sideChoice==='1'?'black':'random';
+      const r=await this._call(()=>this.adapter.createSeek(
+        this.boardId,this.activeModes,pref,this.seekRated));
+      if(r.error) return;
+      this.hadSeek=true;
+      this.showNotice('Game offered — waiting for an opponent. It starts automatically when someone accepts.');
+      this.refreshLobby();
+    },
+    async takeSeek(id){
+      const r=await this._call(()=>this.adapter.acceptSeek(id));
+      if(r.error){ this.refreshLobby(); return; }
+      this.hadSeek=false;  // starting a game consumed our own seeks too
+      this._resetGameUi();
+      this.id=r.id;
+      this.applyGame(r);
+      this._seenGames[r.id]=true;
+      this.refreshLobby();
+      if(this.gameMeta.status==='active') this.pvpPoll();
+    },
+    async dropSeek(id){
+      await this._call(()=>this.adapter.cancelSeek(id));
+      this.hadSeek=false;
+      this.refreshLobby();
+    },
+    async endGame(g){
+      let r;
+      if(g.type==='ai'){
+        r=await this._call(()=>this.adapter.abort(g.id));
+      }else{
+        // pvp: abort is only possible before the second move; otherwise resign
+        r=await this._call(()=>this.adapter.abort(g.id));
+        if(r.error){
+          if(!confirm(`Resign the game against ${g.opponent}?`)) return;
+          this.errorMsg=null;
+          r=await this._call(()=>this.adapter.resign(g.id));
+        }
+      }
+      if(r.error) return;
+      await this.refreshLobby();
+      if(g.id===this.id){
+        // the open game was ended: move on to a fresh board
+        this._pollSeq++;
+        this.newGame();
+      }
+    },
+    modeIcons(modes){
+      const n={decay:'⌛',fog:'🌫',momentum:'⚡'};
+      return (modes||[]).map(m=>n[m]||m).join('');
+    },
+    modeNames(modes){
+      const n={decay:'⌛ Decay',fog:'🌫 Fog',momentum:'⚡ Momentum'};
+      return (modes&&modes.length)?modes.map(m=>n[m]||m).join(' + '):'Classic rules';
+    },
+    ago(ts){
+      if(!ts) return '';
+      const s=(Date.now()-new Date(ts).getTime())/1000;
+      if(s<90) return 'just now';
+      if(s<3600) return Math.round(s/60)+'m ago';
+      if(s<86400) return Math.round(s/3600)+'h ago';
+      return Math.round(s/86400)+'d ago';
+    },
+    boardName(id){ return this.boards[id] ? this.boards[id].name : id; },
+    gameTitle(g){
+      return `${this.boardName(g.board)} · ${this.modeNames(g.modes)} · `
+        + `${g.ply} moves · started ${this.ago(g.created_at)}`;
+    },
+    seekTitle(s){
+      const side=s.mine ? `you play ${s.side_pref}`
+        : (s.you_play==='random' ? 'random sides' : `you'd play ${s.you_play}`);
+      return `${this.boardName(s.board)} · ${this.modeNames(s.modes)} · ${side}`;
+    },
+    async toggleLeaderboard(){
+      this.lbOpen=!this.lbOpen;
+      if(this.lbOpen){
+        const r=await this.adapter.leaderboard('facet');
+        if(r.leaderboard) this.lbRows=r.leaderboard;
+      }
+    },
+    toggleCoords(){
+      this.showCoords=!this.showCoords;
+      localStorage.setItem("facet_showCoords", this.showCoords?"1":"0");
+    },
+    async submitReport(){
+      if(this.reportBusy) return;
+      const desc=(this.bugDescription||'').trim();
+      if(!desc){ this.showError('Please describe the problem before submitting.'); return; }
+      this.reportBusy=true;
+      // the server already has the move log (via game_id); send only the
+      // context it can't reconstruct
+      const gboard = this.gameMeta ? this.gameMeta.board : this.boardId;
+      const payload={
+        description: desc,
+        game_id: this.id || null,
+        client_info: {
+          board: gboard,
+          board_name: this.boards[gboard]?.name || gboard,
+          modes: this.gameMeta ? this.gameMeta.modes : this.activeModes,
+          difficulty: this.gameMeta ? this.gameMeta.difficulty : this.difficulty,
+          type: this.gameMeta ? this.gameMeta.type : 'ai',
+          your_side: this.humanSide,
+          winner: this.winner,
+          board_state: this.state,
+          game_meta: this.gameMeta,
+          ui: { selected:this.selected, lastMove:this.lastMove,
+                aiThinking:this.aiThinking, aiDrawOffer:this.aiDrawOffer,
+                ghosts:this.ghosts, errorMsg:this.errorMsg },
+          client_events: this.eventLog,
+          mode: this.adapterMode,
+          browser: navigator.userAgent,
+          screen: {width: window.innerWidth, height: window.innerHeight},
+        },
+      };
+      try{
+        const r=await this.adapter.submitReport(payload);
+        if(r && r.error){ this.showError(r.error); }
+        else { this.bugDescription=''; this.showNotice('Thanks — your report was submitted for review.'); }
+      }catch(e){ this.showError('Could not submit the report. Please try again.'); }
+      this.reportBusy=false;
+    },
+    async downloadLog(){
+      let serverLog=[];
+      try{const d=await this.adapter.getLog(this.id);if(d&&d.log)serverLog=d.log;}catch(e){}
+      const gboard = this.gameMeta ? this.gameMeta.board : this.boardId;
+      const report = {
+        report_type: 'facet_bug_report',
+        downloaded: new Date().toISOString(),
+        description: this.bugDescription || '(no description provided)',
+        game: {
+          id: this.id,
+          board: gboard,
+          board_name: this.boards[gboard]?.name || gboard,
+          modes: this.gameMeta ? this.gameMeta.modes : this.activeModes,
+          difficulty: this.gameMeta ? this.gameMeta.difficulty : this.difficulty,
+          type: this.gameMeta ? this.gameMeta.type : 'ai',
+          white: this.gameMeta?.white, black: this.gameMeta?.black,
+          your_side: this.humanSide,
+          rated: this.gameMeta?.rated,
+          status: this.gameMeta?.status,
+          winner: this.winner,
+          win_type: this.gameMeta?.win_type,
+          turn: this.state?.to_move,
+          move_count: this.gameMeta ? this.gameMeta.ply
+            : this.eventLog.filter(e=>e.event==='player_move'||e.event==='ai_move').length,
+        },
+        player: this.me?.player?.name,
+        board_state: this.state,
+        game_meta: this.gameMeta,
+        ui: {
+          selected: this.selected,
+          lastMove: this.lastMove,
+          aiThinking: this.aiThinking,
+          aiDrawOffer: this.aiDrawOffer,
+          ghosts: this.ghosts,
+          errorMsg: this.errorMsg,
+        },
+        client_events: this.eventLog,
+        server_moves: serverLog,
+        mode: this.adapterMode,
+        browser: navigator.userAgent,
+        screen: {width: window.innerWidth, height: window.innerHeight},
+      };
+      const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`facet-report-${this.id||'unknown'}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    },
+  },
+  watch:{
+    state(){ this.updateGhosts(); },
+    boardId(){ if(this.winner!==null || !this.id) this.newGame(); },
+    modeDecay(){
+      if(this.modeDecay && !(this.boardId in this.filteredBoards)){
+        this.boardId = Object.keys(this.filteredBoards)[0] || 'classic';
+      }
+      if(this.winner!==null || !this.id) this.newGame();
+    },
+    modeFog(){
+      if(this.modeFog && !(this.boardId in this.filteredBoards)){
+        this.boardId = Object.keys(this.filteredBoards)[0] || 'classic';
+      }
+      if(this.winner!==null || !this.id) this.newGame();
+    },
+    modeMomentum(){
+      if(this.modeMomentum && !(this.boardId in this.filteredBoards)){
+        this.boardId = Object.keys(this.filteredBoards)[0] || 'classic';
+      }
+      if(this.winner!==null || !this.id) this.newGame();
+    },
+  },
+  async mounted(){
+    this.adapter = await createAdapter();
+    this.adapterMode = this.adapter.mode;
+    if(this.isOnline){
+      this.me = await this.adapter.ensureAuth();
+      if(this.me && this.me.error){ this.showError(this.me.error); this.me=null; }
+      this._lobbyTimer=setInterval(()=>this.refreshLobby(), 5000);
+    }
+    const r = await this.adapter.getBoards();
+    if(r.boards) this.boards=r.boards;
+    await this.refreshLobby();
+    // resume the most recent active game, else start a fresh AI game
+    const resume=(this.myGames||[]).find(g=>g.your_turn)||this.myGames[0];
+    if(resume) this.openGame(resume.id);
+    else this.newGame();
+  }
+}).mount('#app');
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', {scope: './facet.html'});
+</script>
+</body>
+</html>

@@ -1,13 +1,13 @@
-const CACHE = "facet-v2";
+const CACHE = "hyperscale-v1";
 const ASSETS = [
-  "./facet.html",
-  "./vue.global.prod.js",
-  "./facet_engine.js",
+  "./hyperscale.html",
+  "./hyperscale_engine.js",
   "./adapter.js",
-  "./manifest.json",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./favicon.png"
+  "./vue.global.prod.js",
+  "./manifest-hyperscale.json",
+  "./hs-icon-192.png",
+  "./hs-icon-512.png",
+  "./hs-favicon.png"
 ];
 
 self.addEventListener("install", e => {
@@ -24,9 +24,8 @@ self.addEventListener("activate", e => {
   self.clients.claim();
 });
 
-// Network-first with cache fallback: fresh code whenever online (so local
-// development and new deploys are never stuck on stale assets), full offline
-// play from cache when the network is gone. API calls bypass the cache.
+// Network-first with cache fallback: fresh code when online, full offline play
+// from cache when the network is gone. API calls bypass the cache.
 self.addEventListener("fetch", e => {
   if (e.request.url.includes("/api/")) return;
   if (e.request.method !== "GET") return;

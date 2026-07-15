@@ -1,10 +1,10 @@
 {
   "name": "FACET",
   "short_name": "FACET",
-  "id": "/index.html",
+  "id": "/facet.html",
   "description": "Chess-inspired strategy game where the board shapes your pieces.",
-  "start_url": "./index.html",
-  "scope": "./index.html",
+  "start_url": "./facet.html",
+  "scope": "./facet.html",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0f1320",

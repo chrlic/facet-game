@@ -308,7 +308,7 @@ class Handler(BaseHTTPRequestHandler):
                 with HUB.glock(gid):
                     game, side = HUB.load_game(gid, p)
                     if action == "move":
-                        if game.get("game_type") == "backbone":
+                        if game.get("game_type") in service.ACTION_GAME_TYPES:
                             act = HUB.make_action(game, side,
                                                   data.get("action"))
                             game = storage.get_game(gid)

@@ -353,15 +353,32 @@ function hsAiMove(board, owner) {
   return { a: "pass" };
 }
 
+// short human-readable rationale for an AI action (for the "explain AI moves" panel).
+function hsExplainAction(board, action, owner) {
+  const a = action.a;
+  if (a === "install") return { aim: "score", text: `Adding a server at (${action.x},${action.y}) — more powered servers means more tokens.` };
+  if (a === "buy") return { aim: "consolidate", text: `Stockpiling ${action.res} from the market before prices climb.` };
+  if (a === "sabotage") return { aim: "disrupt", text: `Sabotaging your piece at (${action.x},${action.y}) to cut power to your datacenters.` };
+  if (a === "pass") return { aim: "wait", text: `Nothing worth doing — ending the day.` };
+  if (a === "build") {
+    if (action.piece === "dc") return { aim: "expand", text: `Claiming a datacenter at (${action.x},${action.y}) next to an open station.` };
+    if (action.piece === "powerline") return { aim: "expand", text: `Running a power line at (${action.x},${action.y}) to reach more power.` };
+    return { aim: "expand", text: `Extending a road to (${action.x},${action.y}) toward power.` };
+  }
+  return { aim: "wait", text: "…" };
+}
+
 // -------------------------------------------------------------- controller
 class HyperscaleMatch {
   constructor(opts = {}) {
     this.humanSide = opts.humanSide === 1 ? 1 : 0;
+    this.online = !!opts.online;   // online: the opponent is remote (server-driven), no local AI
     this.board = new HSBoard();
     this.log = [];        // human-readable ticker (capped)
     this.history = [];    // full structured move list (uncapped, for download/replay)
     this.aiChanges = [];
-    this._runAI();
+    this.aiExplain = [];  // rationale for each action of the AI's last turn
+    if (!this.online) this._runAI();
   }
   aiSide() { return 1 - this.humanSide; }
   _logAct(owner, act) {
@@ -380,12 +397,14 @@ class HyperscaleMatch {
   _runAI() {
     if (this.board.winner !== null || this.board.to_move !== this.aiSide()) return;
     this.aiChanges = [];
+    this.aiExplain = [];
     let g = 0;
     while (this.board.winner === null && this.board.to_move === this.aiSide() && g++ < 300) {
       const act = hsAiMove(this.board, this.board.to_move);
       const legal = this.board.is_legal(act) ? act : { a: "pass" };
       this._logAct(this.board.to_move, legal);
       if (legal.a === "build" || legal.a === "install" || legal.a === "sabotage") this.aiChanges.push(hsKey(legal.x, legal.y));
+      if (legal.a !== "pass") this.aiExplain.push(hsExplainAction(this.board, legal, this.board.to_move));
       this.board.apply(legal);
     }
   }
@@ -394,8 +413,25 @@ class HyperscaleMatch {
     if (!this.board.is_legal(action, this.humanSide)) return false;
     this._logAct(this.humanSide, action);
     this.board.apply(action);
-    this._runAI();
+    if (!this.online) this._runAI();
     return true;
+  }
+  // ONLINE: apply one action from the remote opponent (server-driven).
+  applyRemote(action) {
+    const owner = this.board.to_move;
+    this._logAct(owner, action);
+    if (action.a === "build" || action.a === "install" || action.a === "sabotage") this.aiChanges.push(hsKey(action.x, action.y));
+    this.board.apply(action);
+  }
+  // ONLINE: sync the local mirror to the server's authoritative move list. `moves` is the
+  // full recorded action list (each with a JSON `data` field); apply any not yet applied.
+  syncMoves(moves) {
+    this.aiChanges = [];
+    for (let i = this.history.length; i < moves.length; i++) {
+      const m = moves[i];
+      const act = (m && m.data !== undefined) ? (typeof m.data === "string" ? JSON.parse(m.data) : m.data) : m;
+      this.applyRemote(act);
+    }
   }
   // full snapshot of the game (current status + every move) for download / replay
   exportGame() {

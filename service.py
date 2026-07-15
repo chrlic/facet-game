@@ -14,11 +14,13 @@ import time
 
 import storage
 import backbone_engine
+import hyperscale_engine
 from facet_engine import (BOARDS, CLASSIC_BOARDS, DECAY_BOARDS, FOG_BOARDS,
                           MOMENTUM_BOARDS, make_board, ai_move,
                           ai_evaluate_draw, ai_wants_draw, resolve_fog_move)
 
-GAME_TYPES = ("facet", "backbone")
+GAME_TYPES = ("facet", "backbone", "hyperscale")
+ACTION_GAME_TYPES = ("backbone", "hyperscale")   # action-dict engines (vs facet's from/to moves)
 
 DIFF = {  # difficulty -> (time_budget_seconds, max_depth)
     "easy":   (0.25, 2),
@@ -417,6 +419,10 @@ class GameHub:
             b = backbone_engine.Board()
             for m in storage.get_moves(gid):
                 b.apply(json.loads(m["data"]))
+        elif game.get("game_type") == "hyperscale":
+            b = hyperscale_engine.Board()
+            for m in storage.get_moves(gid):
+                b.apply(json.loads(m["data"]))
         else:
             b = make_board(game["board"], modes=set(game["modes"]))
             for m in storage.get_moves(gid):
@@ -499,6 +505,10 @@ class GameHub:
             st = backbone_engine.serialize(board)
             if draw_agreed:
                 st["winner"] = "draw"
+        elif game.get("game_type") == "hyperscale":
+            st = hyperscale_engine.serialize(board)
+            if draw_agreed:
+                st["winner"] = "draw"
         else:
             st = serialize(board, draw_agreed=draw_agreed, viewer=side)
         if game["status"] == "finished":
@@ -524,6 +534,10 @@ class GameHub:
             board_id, modes = "standard", set()
             if difficulty not in backbone_engine.DIFF:
                 difficulty = "normal"
+        elif game_type == "hyperscale":
+            board_id, modes = "standard", set()
+            if difficulty not in hyperscale_engine.DIFF:
+                difficulty = "normal"
         else:
             modes = validate_setup(board_id, modes)
             if difficulty not in DIFF:
@@ -539,7 +553,7 @@ class GameHub:
 
     def create_pvp_game(self, seek, accepter):
         game_type = seek.get("game_type", "facet")
-        if game_type == "backbone":
+        if game_type in ACTION_GAME_TYPES:
             modes = set()
         else:
             modes = validate_setup(seek["board"], seek["modes"])
@@ -581,9 +595,15 @@ class GameHub:
         storage.record_move(game["id"], ply, (0, 0), (0, 0), False,
                             data=json.dumps(action))
         if board.winner is not None:
-            self._finish_backbone(game, board)
+            self._finish_action_game(game, board)
         self.bump(game["id"])
         return action
+
+    def _finish_action_game(self, game, board):
+        if game.get("game_type") == "hyperscale":
+            self._finish_hyperscale(game, board)
+        else:
+            self._finish_backbone(game, board)
 
     def _finish_backbone(self, game, board):
         w = board.winner
@@ -593,6 +613,31 @@ class GameHub:
             wt = ("victory" if board.score(w) >= board.target_vp
                   else "stalemate")
             self.finish(game, w, wt)
+
+    def _finish_hyperscale(self, game, board):
+        w = board.winner   # 0 / 1 after 24 days, or "draw" on a tie
+        if w == "draw":
+            self.finish(game, "draw", "stalemate")
+        else:
+            self.finish(game, w, "victory")
+
+    def ai_step_hyperscale(self, game, side):
+        board = self.board_for(game)
+        ai_side = 0 if game["white_id"] is None else 1
+        if game["status"] != "active":
+            return {"move": None}
+        if board.to_move != ai_side:
+            raise ApiError(400, "not the AI's turn")
+        act = hyperscale_engine.ai_move(board, game["ai_difficulty"])
+        explain = hyperscale_engine.explain_action(board, act, ai_side)
+        ply = len(storage.get_moves(game["id"]))
+        board.apply(act)
+        storage.record_move(game["id"], ply, (0, 0), (0, 0), False,
+                            data=json.dumps(act))
+        if board.winner is not None:
+            self._finish_hyperscale(game, board)
+        self.bump(game["id"])
+        return {"move": act, "info": {"difficulty": game["ai_difficulty"], "explain": explain}}
 
     def ai_step_backbone(self, game, side):
         board = self.board_for(game)
@@ -643,6 +688,8 @@ class GameHub:
             return {"move": None}
         if game.get("game_type") == "backbone":
             return self.ai_step_backbone(game, side)
+        if game.get("game_type") == "hyperscale":
+            return self.ai_step_hyperscale(game, side)
         board = self.board_for(game)
         ai_side = 0 if game["white_id"] is None else 1
         if board.to_move != ai_side:
