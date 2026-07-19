@@ -12,7 +12,7 @@
 <title>Playground Games</title>
 <style>
   :root{--bg:#0f1320;--panel:#171c2e;--ink:#e7ecf5;--muted:#8b95ad;
-        --facet:#2f8f5b;--backbone:#7aa2ff;--hyper:#e0965b}
+        --facet:#2f8f5b;--backbone:#7aa2ff;--hyper:#e0965b;--oct:#d9b45b;--hxg:#d8a24a}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
        font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;min-height:100vh}
@@ -29,7 +29,7 @@
   .g-name{font-weight:800;letter-spacing:2px;font-size:20px}
   .g-desc{color:var(--muted);font-size:13px;margin-top:3px;line-height:1.45}
   .g-go{margin-left:auto;font-weight:700;font-size:22px;flex:none;opacity:.5}
-  .facet .g-name{color:var(--facet)} .backbone .g-name{color:var(--backbone)} .hyper .g-name{color:var(--hyper)}
+  .facet .g-name{color:var(--facet)} .backbone .g-name{color:var(--backbone)} .hyper .g-name{color:var(--hyper)} .oct .g-name{color:var(--oct)} .hxg .g-name{color:var(--hxg)}
   .installbar{margin-top:22px;text-align:center}
   button{background:#243049;color:var(--ink);border:1px solid #33415f;padding:9px 16px;
          border-radius:10px;cursor:pointer;font-weight:600;font-size:14px}
@@ -41,7 +41,7 @@
 <div class="wrap">
   <header>
     <h1>PLAYGROUND</h1>
-    <p class="sub">Three strategy games — play vs AI or online. Pick one to begin.</p>
+    <p class="sub">Strategy games — play vs AI or online. Pick one to begin.</p>
   </header>
 
   <div class="grid">
@@ -63,12 +63,24 @@
         <div class="g-desc">Wire datacenters to scarce shared power, equip them from a finite market, and out-produce your rival over 24 days.</div></div>
       <div class="g-go">→</div>
     </a>
+    <a class="game oct" href="octa-chess.html">
+      <img src="ocx-icon-512.png" alt="">
+      <div><div class="g-name">OCTA-CHESS</div>
+        <div class="g-desc">Chess on an octagon-and-gate board — every diagonal runs through a contested gate. Vs AI or online.</div></div>
+      <div class="g-go">→</div>
+    </a>
+    <a class="game hxg" href="hexa-go.html">
+      <img src="hxg-icon-512.png" alt="">
+      <div><div class="g-name">HEXA-GO</div>
+        <div class="g-desc">Go on a hexagonal / triangular lattice — place stones on the intersections, capture groups, and surround territory. Vs AI or online.</div></div>
+      <div class="g-go">→</div>
+    </a>
   </div>
 
   <div class="installbar">
-    <button id="install" style="display:none">⬇ Install all three as one app</button>
+    <button id="install" style="display:none">⬇ Install all games as one app</button>
   </div>
-  <p class="note">Each game also installs on its own from its page. This app bundles all three with a game picker.</p>
+  <p class="note">Each game also installs on its own from its page. This app bundles all games with a game picker.</p>
 </div>
 
 <script>

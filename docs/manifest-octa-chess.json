@@ -1,0 +1,16 @@
+{
+  "name": "OCTA-CHESS",
+  "short_name": "OCTA-CHESS",
+  "id": "/octa-chess.html",
+  "description": "Chess on an octagon-and-gate board where every diagonal runs through a contested gate.",
+  "start_url": "./octa-chess.html",
+  "scope": "./octa-chess.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1320",
+  "theme_color": "#0f1320",
+  "icons": [
+    {"src": "ocx-icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "ocx-icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

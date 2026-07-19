@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0f1320" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="manifest" href="manifest-hexa-go.json" />
+<link rel="apple-touch-icon" href="hxg-icon-192.png" />
+<link rel="icon" type="image/png" href="hxg-favicon.png" />
+<title>HEXA-GO</title>
+<script src="hexago_engine.js"></script>
+<script src="adapter.js"></script>
+<script src="vue.global.prod.js"></script>
+<style>
+  :root{
+    --bg:#0f1320; --panel:#171c2e; --ink:#e7ecf5; --muted:#8b95ad; --line-c:#2a3147;
+    --board:#c8a063; --grid:#6b4d24; --edge:#3a2a12; --black:#1b1b20; --white:#f4f2e8; --hl:#d8a24a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:1040px;margin:0 auto;padding:20px}
+  h1{font-weight:800;letter-spacing:6px;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 16px;font-size:14px}
+  .sub a{color:var(--hl);text-decoration:none;margin-left:8px}
+  .layout{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .boardwrap{background:var(--panel);padding:12px;border-radius:16px;
+             box-shadow:0 12px 44px #0009;max-width:100%}
+  svg{display:block;width:min(76vw,560px);height:min(76vw,560px);touch-action:manipulation}
+  .panel{flex:1;min-width:260px;max-width:340px;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line-c);border-radius:14px;padding:14px 16px}
+  .card h2{margin:0 0 10px;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-weight:700}
+  .status{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .stone{width:15px;height:15px;border-radius:50%;flex:none;border:1px solid #0006}
+  .st-b{background:var(--black)} .st-w{background:var(--white)}
+  .warn{color:#e0655b} .win{color:var(--hl)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .seg{display:flex;border:1px solid var(--line-c);border-radius:9px;overflow:hidden}
+  .seg button{background:transparent;border:0;color:var(--muted);padding:7px 11px;cursor:pointer;font-size:13px;font-weight:600}
+  .seg button.on{background:#243049;color:var(--ink)}
+  button.act{background:#243049;color:var(--ink);border:1px solid #33415f;padding:9px 14px;
+             border-radius:10px;cursor:pointer;font-weight:600;font-size:14px}
+  button.act:hover{background:#2c3a58}
+  button.act:disabled{opacity:.4;cursor:default}
+  button.primary{background:var(--hl);color:#241a06;border-color:var(--hl)}
+  .scores{display:flex;gap:10px}
+  .scorebox{flex:1;background:#0c1020;border-radius:10px;padding:10px 12px;text-align:center}
+  .scorebox .big{font-size:22px;font-weight:800}
+  .scorebox .lbl{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+  .brk{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .lbl2{color:var(--muted);font-size:13px;width:44px;flex:none}
+  details{font-size:13px;color:var(--muted);line-height:1.55}
+  details summary{cursor:pointer;color:var(--ink);font-weight:600;margin-bottom:6px}
+  details b{color:var(--ink)}
+  .think{font-size:13px;color:var(--hl)}
+  .hit{cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app" class="wrap" v-cloak>
+  <h1>HEXA-GO</h1>
+  <p class="sub">Go on an equal-edge lattice — stones on the intersections.
+     <a href="./">⊞ Games</a> · <a href="octa-chess.html">OCTA-CHESS</a> · <a href="facet.html">FACET</a> · <a href="backbone.html">BACKBONE</a></p>
+
+  <div class="layout">
+    <div class="boardwrap">
+      <svg viewBox="0 0 800 800" @contextmenu.prevent>
+        <!-- board background (visible on the dark page) -->
+        <polygon :points="hull" fill="var(--board)" stroke="var(--board)" :stroke-width="edgePx"
+                 stroke-linejoin="round" stroke-linecap="round"/>
+        <polygon :points="hull" fill="none" stroke="var(--edge)" stroke-width="3"
+                 stroke-linejoin="round" pointer-events="none" opacity="0.7"/>
+        <!-- grid: one line per edge -->
+        <line v-for="(e,i) in edges" :key="'e'+i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2"
+              stroke="var(--grid)" stroke-width="1.8" opacity="0.75" pointer-events="none"/>
+        <circle v-for="p in points" :key="'d'+p.id" :cx="p.x" :cy="p.y" r="2.2" fill="var(--grid)" opacity="0.5" pointer-events="none"/>
+        <!-- territory shading at game end -->
+        <template v-if="over">
+          <circle v-for="t in territory" :key="'t'+t.id" :cx="t.x" :cy="t.y" :r="stoneR*0.7"
+                  :fill="t.c===1?'var(--black)':'var(--white)'" opacity="0.3" pointer-events="none"/>
+        </template>
+        <!-- stones -->
+        <circle v-for="s in stones" :key="'s'+s.id" :cx="s.x" :cy="s.y" :r="stoneR"
+                :fill="s.c===1?'var(--black)':'var(--white)'"
+                :stroke="s.c===1?'#000':'#b9b4a2'" stroke-width="1.2" pointer-events="none"/>
+        <circle v-if="lastPt" :cx="lastPt.x" :cy="lastPt.y" :r="stoneR*0.4" fill="none"
+                :stroke="lastPt.c===1?'#f4f2e8':'#1b1b20'" stroke-width="2.6" pointer-events="none"/>
+        <!-- click targets -->
+        <circle v-for="p in points" :key="'h'+p.id" class="hit" :cx="p.x" :cy="p.y" :r="hitR"
+                fill="transparent" pointer-events="all" @click="place(p.id)"/>
+      </svg>
+    </div>
+
+    <div class="panel">
+      <div class="card" v-if="errorMsg" style="border-color:#e0655b;color:#e0655b;font-size:13px">{{errorMsg}}</div>
+
+      <!-- account (only when a server is present) -->
+      <div class="card" v-if="isServer && acct">
+        <div class="row" style="justify-content:space-between;align-items:center;gap:6px">
+          <span style="font-size:14px"><b>{{acct.name}}</b> <span style="color:var(--muted)" v-if="acct.is_guest">(guest)</span></span>
+          <span class="row" style="gap:5px">
+            <button class="act" style="padding:5px 9px;font-size:12px" v-if="acct.is_guest" @click="authForm=authForm==='claim'?null:'claim'">Claim</button>
+            <button class="act" style="padding:5px 9px;font-size:12px" v-if="acct.is_guest" @click="authForm=authForm==='login'?null:'login'">Login</button>
+            <button class="act" style="padding:5px 9px;font-size:12px" @click="toggleLeaderboard">Ranks</button>
+            <button class="act" style="padding:5px 9px;font-size:12px" v-if="!acct.is_guest" @click="logout">Logout</button>
+          </span>
+        </div>
+        <div v-if="authForm" class="row" style="margin-top:8px;gap:6px">
+          <input v-model="authName" placeholder="name" @keyup.enter="submitAuth" style="flex:1;min-width:0;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
+          <input v-model="authPass" type="password" placeholder="password" @keyup.enter="submitAuth" style="flex:1;min-width:0;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
+          <button class="act primary" @click="submitAuth" :disabled="authBusy">{{authForm==='login'?'Login':authForm==='claim'?'Claim':'Register'}}</button>
+        </div>
+        <div v-if="authForm==='login'" style="margin-top:4px;font-size:12px;color:var(--muted)">No account? <a href="#" @click.prevent="authForm='register'" style="color:var(--hl)">Register</a></div>
+        <div v-if="lbOpen" style="margin-top:8px">
+          <div v-if="!lbRows.length" style="font-size:12px;color:var(--muted)">no rated games yet</div>
+          <div v-for="(row,i) in lbRows" :key="row.name" class="row" style="justify-content:space-between;font-size:13px">
+            <span><span style="color:var(--muted)">{{i+1}}.</span> <b>{{row.name}}</b></span><span>{{Math.round(row.rating)}}</span></div>
+        </div>
+        <div v-if="recoveryCode" style="margin-top:8px;padding:8px;background:#0c1020;border-radius:8px;font-size:12px">
+          Recovery code (save it): <b style="color:var(--hl)">{{recoveryCode}}</b>
+          <button class="act" style="padding:4px 8px;margin-left:8px" @click="recoveryCode=null">OK</button></div>
+      </div>
+
+      <div class="card">
+        <div class="status">
+          <span class="stone" :class="turn===1?'st-b':'st-w'"></span>
+          <span v-if="over" :class="resultClass">{{statusText}}</span>
+          <span v-else>{{statusText}}</span>
+        </div>
+        <div v-if="thinking" class="think" style="margin-top:8px">AI is thinking…</div>
+        <div v-else-if="lastPass" class="think" style="margin-top:8px;color:var(--muted)">{{lastPass}} passed — pass again to end &amp; score.</div>
+      </div>
+
+      <div class="card">
+        <h2>Score</h2>
+        <div class="scores">
+          <div class="scorebox"><div class="big">{{sc.black}}</div><div class="lbl">● Black</div></div>
+          <div class="scorebox"><div class="big">{{sc.white}}</div><div class="lbl">○ White</div></div>
+        </div>
+        <div class="brk">
+          Black — {{sc.terrB}} territory + {{sc.capB}} prisoners<br>
+          White — {{sc.terrW}} territory + {{sc.capW}} prisoners + {{komi}} komi<br>
+          <span style="opacity:.7">{{over?'Final score.':'Live estimate (territory scoring).'}}</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>New game</h2>
+        <div class="row" style="margin-bottom:10px" v-if="!online">
+          <span class="lbl2">Board</span>
+          <div class="seg">
+            <button :class="{on:boardChoice==='tri'}" @click="boardChoice='tri'" title="Triangular tiling — 6 liberties per point">△ 6-lib</button>
+            <button :class="{on:boardChoice==='elong'}" @click="boardChoice='elong'" title="Elongated triangular (squares + triangles) — 5 liberties per point">▽ 5-lib</button>
+          </div>
+        </div>
+        <div class="row" style="margin-bottom:10px" v-if="!online">
+          <span class="lbl2">Size</span>
+          <div class="seg">
+            <button :class="{on:sizeChoice==='s'}" @click="sizeChoice='s'">Small</button>
+            <button :class="{on:sizeChoice==='m'}" @click="sizeChoice='m'">Medium</button>
+            <button :class="{on:sizeChoice==='l'}" @click="sizeChoice='l'">Large</button>
+          </div>
+        </div>
+        <div class="row" style="margin-bottom:12px">
+          <span class="lbl2">You</span>
+          <div class="seg">
+            <button :class="{on:colorChoice==='b'}" @click="colorChoice='b'">● Black</button>
+            <button :class="{on:colorChoice==='w'}" @click="colorChoice='w'">○ White</button>
+          </div>
+        </div>
+        <div class="row">
+          <button class="act primary" @click="isServer ? playAiOnline() : newGame()">New AI game</button>
+          <button class="act" v-if="isServer" @click="createSeek">Find opponent</button>
+          <button class="act" @click="doPass" :disabled="over||thinking||busy||turn!==playerColor">Pass</button>
+          <button class="act" v-if="online" @click="resignGame">Resign</button>
+          <button class="act" v-if="!online" @click="undo" :disabled="!canUndo">Undo</button>
+        </div>
+        <div class="row" v-if="isServer" style="margin-top:8px;gap:12px;align-items:center">
+          <label v-if="acct && !acct.is_guest" style="font-size:12px;color:var(--muted);cursor:pointer"><input type="checkbox" v-model="seekRated"> rated</label>
+          <button class="act" v-if="online" style="padding:5px 9px;font-size:12px" @click="newGame">Practice offline</button>
+          <span v-if="online" style="font-size:12px;color:var(--muted)">board: triangular · medium</span>
+        </div>
+        <div v-if="isServer && (seeks.length || myGames.length)" style="margin-top:10px;border-top:1px solid var(--line-c);padding-top:8px">
+          <div v-for="g in myGames" :key="g.id" class="row" style="justify-content:space-between;font-size:12px;margin:3px 0">
+            <a href="#" @click.prevent="openGame(g.id)" :style="{color:g.id===gid?'var(--hl)':'var(--board)'}">vs {{g.opponent}}</a>
+            <b v-if="g.your_turn" style="color:var(--hl)">your turn</b><span v-else style="color:var(--muted)">waiting</span></div>
+          <div v-for="s in seeks" :key="'s'+s.id" class="row" style="justify-content:space-between;font-size:12px;margin:3px 0">
+            <span>{{s.mine?'Your offer':s.player}} <span style="color:var(--muted)">{{s.rated?'· rated':''}}</span></span>
+            <button class="act" style="padding:4px 8px;font-size:12px" v-if="s.mine" @click="cancelSeek(s.id)">Cancel</button>
+            <button class="act primary" style="padding:4px 8px;font-size:12px" v-else @click="acceptSeek(s.id)">Join</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <details>
+          <summary>How to play</summary>
+          <p>HEXA-GO is <b>Go</b> on an equal-edge lattice. Stones sit on the <b>intersections</b>;
+          two points are connected (share a liberty) when an edge joins them. Pick the board:
+          <b>triangular</b> gives each point 6 neighbours, <b>elongated</b> (squares + triangles) gives 5.
+          Black plays first; players alternate placing one stone on any empty point.</p>
+          <p><b>Capture.</b> Connected same-colour stones form a group sharing their empty-point
+          liberties. Fill a group's last liberty and it is <b>captured</b> (becomes your prisoners).
+          You may not play a stone with no liberties (<b>suicide</b>) unless it captures, and
+          <b>ko</b> forbids an immediate repeating recapture.</p>
+          <p><b>Ending &amp; scoring.</b> Two passes end the game. Score is by <b>territory</b>:
+          your surrounded empty points + your prisoners (+ <b>{{komi}}</b> komi for White). Placed stones
+          aren't counted. Most points wins. <i>Capture dead stones before passing so they count.</i></p>
+          <p style="opacity:.7">The AI uses Monte-Carlo playouts — it thinks about a second per move.</p>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+const GO = window.HEXAGO;
+
+createApp({
+  data(){
+    return {
+      state: null, history: [], board: null,
+      playerColor: 1, colorChoice:'b', boardChoice:'tri', sizeChoice:'m',
+      thinking:false, over:false, statusInfo:{over:false}, scoreView:null,
+      komi: GO.KOMI,
+      // --- online multiplayer (server-backed; online games use a fixed tri/medium board) ---
+      adapter:null, acct:null, online:false, isPvp:false, humanSide:1, busy:false,
+      gid:null, gameMeta:null, gameV:-1, _pollSeq:0, _lobbyTimer:null,
+      seeks:[], myGames:[], seekRated:false,
+      authForm:null, authName:'', authPass:'', authBusy:false, recoveryCode:null,
+      lbOpen:false, lbRows:[], errorMsg:null, _errT:null,
+    };
+  },
+  computed: {
+    isServer(){ return this.adapter && this.adapter.mode==='server'; },
+    points(){ return this.board.points.map((p,i)=>({id:i, x:p.x, y:p.y})); },
+    edges(){ const adj=this.board.adj, pts=this.board.points, out=[];
+      for(let i=0;i<adj.length;i++) for(const j of adj[i]) if(j>i)
+        out.push({x1:pts[i].x, y1:pts[i].y, x2:pts[j].x, y2:pts[j].y}); return out; },
+    hull(){ return this.board.hull.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' '); },
+    edgePx(){ return this.board.edgePx; },
+    stoneR(){ return this.board.edgePx*0.39; },
+    hitR(){ return this.board.edgePx*0.52; },
+    turn(){ return this.state.turn; },
+    stones(){ const c=this.state.color, pts=this.board.points, out=[];
+      for(let i=0;i<c.length;i++) if(c[i]) out.push({id:i, x:pts[i].x, y:pts[i].y, c:c[i]}); return out; },
+    lastPt(){ const l=this.state.last; if(l<0) return null; const p=this.board.points[l]; return {x:p.x, y:p.y, c:3-this.state.turn}; },
+    sc(){ const s=(this.over && this.scoreView) ? this.scoreView : GO.score(this.state);
+      return { black:(s.black%1?s.black.toFixed(1):s.black), white:(s.white%1?s.white.toFixed(1):s.white),
+               terrB:s.terrB, terrW:s.terrW, capB:s.capB, capW:s.capW }; },
+    territory(){ if(!this.over || !this.scoreView) return [];
+      const own=this.scoreView.own, col=this.state.color, pts=this.board.points, out=[];
+      for(let i=0;i<own.length;i++){ if(!own[i]) continue;
+        // shade owned empty points (territory) and dead stones (opponent stone inside owner's area)
+        if(col[i]===0 || col[i]!==own[i]) out.push({id:i, x:pts[i].x, y:pts[i].y, c:own[i]});
+      } return out; },
+    canUndo(){ return this.history.length>0 && !this.thinking && !this.online; },
+    lastPass(){ if(this.over||this.state.passes<1) return null; return (3-this.turn)===1?'Black':'White'; },
+    resultClass(){ const r=this.scoreView?this.scoreView.winner:this.statusInfo.result;
+      if(r==='draw'||!r) return '';
+      return (r==='black'&&this.playerColor===1)||(r==='white'&&this.playerColor===2)?'win':'warn'; },
+    statusText(){
+      // online game ended off-board (resign / abort)
+      if(this.online && this.gameMeta && this.gameMeta.status && this.gameMeta.status!=='active' && !this.statusInfo.over){
+        if(this.gameMeta.status==='aborted') return 'Game aborted';
+        const w=this.gameMeta.winner;
+        if(w==='draw'||w===null) return 'Draw';
+        return (Number(w)===this.humanSide) ? 'You win — '+(this.gameMeta.win_type||'resignation') : 'You lose — '+(this.gameMeta.win_type||'resignation'); }
+      if(this.over && this.scoreView){ const s=this.scoreView;
+        if(s.winner==='draw') return 'Draw';
+        return (s.winner==='black'?'Black':'White')+' wins by '+Math.abs(s.margin).toFixed(1); }
+      const me=this.online?(this.turn===this.playerColor?' (your turn)':' (opponent)'):'';
+      return (this.turn===1?'Black':'White')+' to move'+me; },
+  },
+  methods: {
+    place(id){
+      if(this.over || this.thinking || this.busy || this.turn!==this.playerColor) return;
+      if(this.state.color[id]!==0 || !GO.isLegal(this.state, id)) return;
+      this.act({id});
+    },
+    doPass(){
+      if(this.over || this.thinking || this.busy || this.turn!==this.playerColor) return;
+      this.act({pass:true});
+    },
+    _applyAction(a){
+      this.history.push(GO.clone(this.state));
+      this.state = a.pass ? GO.pass(this.state) : GO.play(this.state, a.id);
+      this.refresh();
+    },
+    // unified action entry: offline applies + local AI; online sends to the server first
+    async act(a){
+      if(!this.online){ this._applyAction(a); if(!this.over && this.turn!==this.playerColor) this.aiTurn(); return; }
+      if(this.busy || this.over || this.turn!==this.playerColor) return;
+      this.busy=true;
+      const r=await this._call(()=>this.adapter.moveAction(this.gid, a));
+      this.busy=false;
+      if(!r || r.error) return;
+      this._applyAction(a); this._syncMeta(r);
+      if(this.over){ this.refreshLobby(); return; }
+      if(this.turn!==this.playerColor) this.opponentLoop();
+    },
+    applyServerAction(a){ this._applyAction(a); },
+    syncMoves(moves){
+      this.state=GO.initial(); this.history=[];
+      for(const mv of moves){ const a=(typeof mv.data==='string')?JSON.parse(mv.data):(mv.data||mv);
+        this.history.push(GO.clone(this.state));
+        this.state = a.pass ? GO.pass(this.state) : GO.play(this.state, a.id); }
+      this.refresh();
+    },
+    aiTurn(){
+      this.thinking=true;
+      setTimeout(()=>{
+        const mv = GO.aiMove(this.state, 750);
+        this._applyAction(mv.pass?{pass:true}:{id:mv.id});
+        this.thinking=false;
+      }, 30);
+    },
+    refresh(){ this.statusInfo=GO.status(this.state);
+      const passEnd=this.statusInfo.over;
+      this.over = passEnd || !!(this.online && this.gameMeta && this.gameMeta.status && this.gameMeta.status!=='active');
+      // score by Monte-Carlo ownership only when the game ends by two passes (robust dead-stone territory)
+      this.scoreView = passEnd ? GO.scoreFinal(this.state, 340) : null; },
+    undo(){
+      if(!this.history.length || this.online) return;
+      this.state=this.history.pop();
+      if(this.turn!==this.playerColor && this.history.length) this.state=this.history.pop();
+      this.thinking=false; this.refresh();
+    },
+    // ---- online plumbing (server multiplayer; online = fixed tri/medium board) ----
+    _call(fn){ return (async()=>{ try{ const r=await fn(); if(r&&r.error) this.showError(r.error); return r; }
+      catch(e){ this.showError('network error'); return null; } })(); },
+    showError(m){ this.errorMsg=m; clearTimeout(this._errT); this._errT=setTimeout(()=>this.errorMsg=null,4000); },
+    _syncMeta(r){ if(r&&r.meta) this.gameMeta=r.meta; if(r&&r.v!==undefined) this.gameV=r.v; this.refresh(); },
+    _enterGame(gid, humanSide, isPvp, meta, v){
+      this._pollSeq++; this.online=true; this.gid=gid; this.isPvp=!!isPvp;
+      this.humanSide=humanSide; this.playerColor=(humanSide===1?1:2); this.gameMeta=meta||null; this.gameV=(v!=null)?v:-1;
+      GO.setBoard('tri','m'); this.board=GO.board();
+      this.state=GO.initial(); this.history=[]; this.thinking=false;
+      this.refresh(); this._resume();
+    },
+    async _resume(){
+      const log=await this._call(()=>this.adapter.getLog(this.gid));
+      if(log && log.log) this.syncMoves(log.log);
+      const st=await this._call(()=>this.adapter.state(this.gid,-1));
+      if(st) this._syncMeta(st);
+      if(this.over){ this.refreshLobby(); return; }
+      if(this.turn!==this.playerColor) this.opponentLoop();
+    },
+    async playAiOnline(){
+      const side = this.colorChoice==='b'?1 : this.colorChoice==='w'?0 : (Math.random()<0.5?1:0);
+      const r=await this._call(()=>this.adapter.newGameTyped('hexago', 'normal', side));
+      if(!r||r.error||!r.id) return;
+      this._enterGame(r.id, (r.human_side!=null?r.human_side:side), false, r.meta, r.v); this.refreshLobby();
+    },
+    async opponentLoop(){
+      if(this.isPvp){ this.pvpPoll(); return; }
+      const gid=this.gid, seq=this._pollSeq; this.thinking=true;
+      while(this.gid===gid && this._pollSeq===seq && !this.over && this.turn!==this.playerColor){
+        const r=await this._call(()=>this.adapter.aiMove(gid));
+        if(this.gid!==gid || this._pollSeq!==seq){ this.thinking=false; return; }
+        if(!r||r.error||!r.move) break;
+        this.applyServerAction(r.move); this._syncMeta(r);
+      }
+      this.thinking=false; if(this.over) this.refreshLobby();
+    },
+    async pvpPoll(){
+      const gid=this.gid, seq=++this._pollSeq;
+      while(this.gid===gid && this._pollSeq===seq && this.isPvp && this.gameMeta && this.gameMeta.status==='active'){
+        let r=null; try{ r=await this.adapter.state(gid,this.gameV,true); }catch(e){}
+        if(this.gid!==gid || this._pollSeq!==seq) return;
+        if(!r||r.error){ await new Promise(res=>setTimeout(res,3000)); continue; }
+        this._syncMeta(r);
+        const log=await this._call(()=>this.adapter.getLog(gid));
+        if(this.gid!==gid || this._pollSeq!==seq) return;
+        if(log && log.log) this.syncMoves(log.log);
+        if(this.gameMeta.status!=='active'){ this.refreshLobby(); return; }
+      }
+    },
+    async resignGame(){ if(!this.online||!this.gid) return;
+      await this._call(()=>this.adapter.resign(this.gid));
+      const st=await this._call(()=>this.adapter.state(this.gid,-1)); if(st) this._syncMeta(st); this.refreshLobby(); },
+    async refreshLobby(){
+      if(!this.isServer) return;
+      const [seeks,games,me]=await Promise.all([this.adapter.getSeeks(),this.adapter.myGames(),this.adapter.me()]);
+      this.acct=me&&me.player?me.player:this.acct;
+      this.seeks=((seeks&&seeks.seeks)||[]).filter(s=>s.game_type==='hexago');
+      this.myGames=((games&&games.games)||[]).filter(g=>g.game_type==='hexago');
+    },
+    async createSeek(){
+      const side=this.colorChoice==='b'?'black':this.colorChoice==='w'?'white':'either';
+      const r=await this._call(()=>this.adapter.createSeek('standard',[],side,this.seekRated,null,'hexago'));
+      if(r&&!r.error) this.refreshLobby();
+    },
+    async cancelSeek(id){ await this._call(()=>this.adapter.cancelSeek(id)); this.refreshLobby(); },
+    async acceptSeek(id){ const r=await this._call(()=>this.adapter.acceptSeek(id)); if(r&&r.id&&r.meta) this._enterGame(r.id, r.meta.your_side, true, r.meta, r.v); },
+    async openGame(id){ const r=await this._call(()=>this.adapter.state(id,-1)); if(r&&r.meta) this._enterGame(id, r.meta.your_side, r.meta.type==='pvp', r.meta, r.v); },
+    async toggleLeaderboard(){ this.lbOpen=!this.lbOpen; if(this.lbOpen){ const r=await this._call(()=>this.adapter.leaderboard('hexago')); this.lbRows=(r&&r.leaderboard)||[]; } },
+    async submitAuth(){ const n=this.authName.trim(); if(!n) return; this.authBusy=true; let r;
+      if(this.authForm==='login') r=await this.adapter.login(n,this.authPass);
+      else if(this.authForm==='register') r=await this.adapter.register(n,this.authPass);
+      else if(this.authForm==='claim') r=await this.adapter.claim(n,this.authPass);
+      else if(this.authForm==='rename') r=await this.adapter.rename(n);
+      this.authBusy=false;
+      if(r&&r.error){ this.showError(r.error); return; }
+      if(r&&r.recovery_code) this.recoveryCode=r.recovery_code;
+      this.authForm=null; this.authPass='';
+      const me=await this.adapter.me(); this.acct=me&&me.player?me.player:this.acct; this.refreshLobby(); },
+    async logout(){ await this.adapter.logout(); const r=await this.adapter.ensureAuth(); this.acct=r&&r.player?r.player:null; this.refreshLobby(); },
+    newGame(){
+      this.online=false; this.gid=null; this.gameMeta=null; this.isPvp=false; this._pollSeq++;
+      this.playerColor = this.colorChoice==='b'?1:2;
+      GO.setBoard(this.boardChoice, this.sizeChoice); this.board = GO.board();
+      this.state=GO.initial(); this.history=[]; this.thinking=false; this.refresh();
+      if(this.isServer) this.refreshLobby();
+      if(this.turn!==this.playerColor) this.aiTurn();
+    },
+  },
+  async mounted(){
+    const cc=localStorage.getItem('hxg_color'); if(cc) this.colorChoice=cc;
+    const bc=localStorage.getItem('hxg_board'); if(bc) this.boardChoice=bc;
+    const sz=localStorage.getItem('hxg_size'); if(sz) this.sizeChoice=sz;
+    this.$watch('colorChoice', v=>localStorage.setItem('hxg_color', v));
+    this.$watch('boardChoice', v=>localStorage.setItem('hxg_board', v));
+    this.$watch('sizeChoice', v=>localStorage.setItem('hxg_size', v));
+    GO.setBoard(this.boardChoice, this.sizeChoice); this.board = GO.board(); this.state = GO.initial(); this.refresh();
+    // detect a server: if present, offer online (auth/lobby); otherwise stay fully offline
+    this.adapter = await createAdapter();
+    if(this.isServer){
+      const me=await this.adapter.ensureAuth(); this.acct=me&&me.player?me.player:null;
+      await this.refreshLobby();
+      const resume=(this.myGames||[]).find(g=>g.your_turn)||this.myGames[0];
+      if(resume) this.openGame(resume.id); else this.newGame();
+      this._lobbyTimer=setInterval(()=>{ if(!this.gid && this.isServer) this.refreshLobby(); }, 8000);
+    } else {
+      this.newGame();
+    }
+  }
+}).mount('#app');
+if('serviceWorker' in navigator) navigator.serviceWorker.register('hxg-sw.js', {scope: './hexa-go.html'});
+</script>
+<style>[v-cloak]{display:none}</style>
+</body>
+</html>

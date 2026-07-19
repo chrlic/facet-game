@@ -19,8 +19,10 @@ jobs:
           sed -i "s/const CACHE = \"facet-v[0-9]*\"/const CACHE = \"facet-${VERSION}\"/" docs/sw.js
           sed -i "s/const CACHE = \"backbone-v[0-9]*\"/const CACHE = \"backbone-${VERSION}\"/" docs/bb-sw.js
           sed -i "s/const CACHE = \"hyperscale-v[0-9]*\"/const CACHE = \"hyperscale-${VERSION}\"/" docs/hs-sw.js
+          sed -i "s/const CACHE = \"octachess-v[0-9]*\"/const CACHE = \"octachess-${VERSION}\"/" docs/ocx-sw.js
+          sed -i "s/const CACHE = \"hexago-v[0-9]*\"/const CACHE = \"hexago-${VERSION}\"/" docs/hxg-sw.js
           sed -i "s/const CACHE = \"games-hub-v[0-9]*\"/const CACHE = \"games-hub-${VERSION}\"/" docs/hub-sw.js
-          echo "Cache version: ${VERSION} (facet / backbone / hyperscale / hub)"
+          echo "Cache version: ${VERSION} (facet / backbone / hyperscale / octa-chess / hexa-go / hub)"
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:

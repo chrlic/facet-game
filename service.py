@@ -15,12 +15,14 @@ import time
 import storage
 import backbone_engine
 import hyperscale_engine
+import octachess_engine
+import hexago_engine
 from facet_engine import (BOARDS, CLASSIC_BOARDS, DECAY_BOARDS, FOG_BOARDS,
                           MOMENTUM_BOARDS, make_board, ai_move,
                           ai_evaluate_draw, ai_wants_draw, resolve_fog_move)
 
-GAME_TYPES = ("facet", "backbone", "hyperscale")
-ACTION_GAME_TYPES = ("backbone", "hyperscale")   # action-dict engines (vs facet's from/to moves)
+GAME_TYPES = ("facet", "backbone", "hyperscale", "octachess", "hexago")
+ACTION_GAME_TYPES = ("backbone", "hyperscale", "octachess", "hexago")   # action-dict engines (vs facet's from/to moves)
 
 DIFF = {  # difficulty -> (time_budget_seconds, max_depth)
     "easy":   (0.25, 2),
@@ -423,6 +425,14 @@ class GameHub:
             b = hyperscale_engine.Board()
             for m in storage.get_moves(gid):
                 b.apply(json.loads(m["data"]))
+        elif game.get("game_type") == "octachess":
+            b = octachess_engine.Board(warden=("warden" in (game["modes"] or [])))
+            for m in storage.get_moves(gid):
+                b.apply(json.loads(m["data"]))
+        elif game.get("game_type") == "hexago":
+            b = hexago_engine.Board()
+            for m in storage.get_moves(gid):
+                b.apply(json.loads(m["data"]))
         else:
             b = make_board(game["board"], modes=set(game["modes"]))
             for m in storage.get_moves(gid):
@@ -509,6 +519,10 @@ class GameHub:
             st = hyperscale_engine.serialize(board)
             if draw_agreed:
                 st["winner"] = "draw"
+        elif game.get("game_type") == "octachess":
+            st = octachess_engine.serialize(board, draw_agreed=draw_agreed)
+        elif game.get("game_type") == "hexago":
+            st = hexago_engine.serialize(board, draw_agreed=draw_agreed)
         else:
             st = serialize(board, draw_agreed=draw_agreed, viewer=side)
         if game["status"] == "finished":
@@ -538,6 +552,15 @@ class GameHub:
             board_id, modes = "standard", set()
             if difficulty not in hyperscale_engine.DIFF:
                 difficulty = "normal"
+        elif game_type == "octachess":
+            board_id = "standard"
+            modes = {"warden"} if "warden" in (modes or set()) else set()
+            if difficulty not in octachess_engine.DIFF:
+                difficulty = "normal"
+        elif game_type == "hexago":
+            board_id, modes = "standard", set()
+            if difficulty not in hexago_engine.DIFF:
+                difficulty = "normal"
         else:
             modes = validate_setup(board_id, modes)
             if difficulty not in DIFF:
@@ -553,7 +576,9 @@ class GameHub:
 
     def create_pvp_game(self, seek, accepter):
         game_type = seek.get("game_type", "facet")
-        if game_type in ACTION_GAME_TYPES:
+        if game_type == "octachess":
+            modes = {"warden"} if "warden" in (seek["modes"] or []) else set()
+        elif game_type in ACTION_GAME_TYPES:
             modes = set()
         else:
             modes = validate_setup(seek["board"], seek["modes"])
@@ -602,8 +627,44 @@ class GameHub:
     def _finish_action_game(self, game, board):
         if game.get("game_type") == "hyperscale":
             self._finish_hyperscale(game, board)
+        elif game.get("game_type") == "octachess":
+            self._finish_octachess(game, board)
+        elif game.get("game_type") == "hexago":
+            self._finish_hexago(game, board)
         else:
             self._finish_backbone(game, board)
+
+    def _finish_octachess(self, game, board):
+        w = board.winner   # 0 / 1 (checkmate) or "draw" (stalemate/50-move/insufficient)
+        if w == "draw":
+            self.finish(game, "draw", "stalemate")
+        else:
+            self.finish(game, w, "victory")
+
+    def _finish_hexago(self, game, board):
+        w = board.winner   # 0 (Black) / 1 (White) by territory, or "draw"
+        if w == "draw":
+            self.finish(game, "draw", "stalemate")
+        else:
+            self.finish(game, w, "victory")
+
+    def ai_step_hexago(self, game, side):
+        board = self.board_for(game)
+        ai_side = 0 if game["white_id"] is None else 1
+        if game["status"] != "active":
+            return {"move": None}
+        if board.to_move != ai_side:
+            raise ApiError(400, "not the AI's turn")
+        act = hexago_engine.ai_action(board, game["ai_difficulty"])
+        explain = hexago_engine.explain_action(board, act, ai_side)
+        ply = len(storage.get_moves(game["id"]))
+        board.apply(act)
+        storage.record_move(game["id"], ply, (0, 0), (0, 0), False,
+                            data=json.dumps(act))
+        if board.winner is not None:
+            self._finish_hexago(game, board)
+        self.bump(game["id"])
+        return {"move": act, "info": {"difficulty": game["ai_difficulty"], "explain": explain}}
 
     def _finish_backbone(self, game, board):
         w = board.winner
@@ -658,6 +719,27 @@ class GameHub:
         return {"move": act, "info": {"difficulty": game["ai_difficulty"],
                                       "explain": explain}}
 
+    def ai_step_octachess(self, game, side):
+        board = self.board_for(game)
+        ai_side = 0 if game["white_id"] is None else 1
+        if game["status"] != "active":
+            return {"move": None}
+        if board.to_move != ai_side:
+            raise ApiError(400, "not the AI's turn")
+        mv = octachess_engine.ai_move(board.state, game["ai_difficulty"])
+        act = octachess_engine.clean_move(mv) if mv else None
+        if act is None:
+            return {"move": None}
+        explain = octachess_engine.explain_action(board, act, ai_side)
+        ply = len(storage.get_moves(game["id"]))
+        board.apply(act)
+        storage.record_move(game["id"], ply, (0, 0), (0, 0), False,
+                            data=json.dumps(act))
+        if board.winner is not None:
+            self._finish_octachess(game, board)
+        self.bump(game["id"])
+        return {"move": act, "info": {"difficulty": game["ai_difficulty"], "explain": explain}}
+
     def make_move(self, game, side, fr, to):
         if game["status"] != "active":
             raise ApiError(400, "game over")
@@ -690,6 +772,10 @@ class GameHub:
             return self.ai_step_backbone(game, side)
         if game.get("game_type") == "hyperscale":
             return self.ai_step_hyperscale(game, side)
+        if game.get("game_type") == "octachess":
+            return self.ai_step_octachess(game, side)
+        if game.get("game_type") == "hexago":
+            return self.ai_step_hexago(game, side)
         board = self.board_for(game)
         ai_side = 0 if game["white_id"] is None else 1
         if board.to_move != ai_side:

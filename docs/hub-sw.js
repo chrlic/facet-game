@@ -6,7 +6,9 @@ const ASSETS = [
   "./vue.global.prod.js", "./adapter.js",
   "./facet.html", "./facet_engine.js", "./manifest.json", "./icon-192.png", "./icon-512.png",
   "./backbone.html", "./backbone_engine.js", "./manifest-backbone.json", "./bb-icon-192.png", "./bb-icon-512.png",
-  "./hyperscale.html", "./hyperscale_engine.js", "./manifest-hyperscale.json", "./hs-icon-192.png", "./hs-icon-512.png"
+  "./hyperscale.html", "./hyperscale_engine.js", "./manifest-hyperscale.json", "./hs-icon-192.png", "./hs-icon-512.png",
+  "./octa-chess.html", "./octachess_engine.js", "./manifest-octa-chess.json", "./ocx-icon-192.png", "./ocx-icon-512.png",
+  "./hexa-go.html", "./hexago_engine.js", "./manifest-hexa-go.json", "./hxg-icon-192.png", "./hxg-icon-512.png"
 ];
 
 self.addEventListener("install", e => {

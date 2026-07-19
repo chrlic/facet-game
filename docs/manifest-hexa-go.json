@@ -1,0 +1,16 @@
+{
+  "name": "HEXA-GO",
+  "short_name": "HEXA-GO",
+  "id": "/hexa-go.html",
+  "description": "Go on a hexagonal/triangular lattice — capture groups and surround territory.",
+  "start_url": "./hexa-go.html",
+  "scope": "./hexa-go.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1320",
+  "theme_color": "#0f1320",
+  "icons": [
+    {"src": "hxg-icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "hxg-icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}
