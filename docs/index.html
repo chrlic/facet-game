@@ -35,7 +35,27 @@
          border-radius:10px;cursor:pointer;font-weight:600;font-size:14px}
   button:hover{background:#2c3a58}
   .note{color:var(--muted);font-size:12px;margin-top:14px;text-align:center;line-height:1.6}
+  [v-cloak]{display:none}
+  .acct{background:var(--panel);border:1px solid #2a3147;border-radius:14px;padding:12px 16px;font-size:14px;margin-top:18px}
+  .acct-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .acct-btns{display:flex;gap:6px;flex-wrap:wrap}
+  .acct button{padding:6px 10px;font-size:13px}
+  .acct .prim{background:var(--facet);color:#04180d;border-color:transparent}
+  .gtag{background:#33415f;color:#cbd5f0;border-radius:6px;padding:1px 6px;font-size:11px;margin-left:6px}
+  .acct-form{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .acct-form input{flex:1;min-width:120px;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px}
+  .acct select{background:#243049;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:6px;font-size:13px}
+  .acct-note{color:var(--muted);font-size:12px;margin-top:6px}
+  .acct-rec{margin-top:8px;font-size:12px;background:#0c1020;border-radius:8px;padding:8px}
+  .acct-err{color:#e0655b;font-size:12px;margin-top:6px}
+  .lb-row{display:flex;justify-content:space-between;font-size:13px;margin-top:3px;padding:1px 6px;border-radius:6px}
+  .lb-row.me{background:#20304e} .lb-row.me b{color:var(--hxg)}
+  .lb-sep{color:#4a5578;text-align:center;font-size:12px;margin:2px 0;letter-spacing:2px}
+  .nudge{margin-top:8px;font-size:12.5px;color:var(--muted)}
+  .nudge a{color:var(--facet);cursor:pointer}
 </style>
+<script src="adapter.js"></script>
+<script src="vue.global.prod.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -43,6 +63,58 @@
     <h1>PLAYGROUND</h1>
     <p class="sub">Strategy games — play vs AI or online. Pick one to begin.</p>
   </header>
+
+  <!-- central player account (shared across every game; games only show who you are) -->
+  <div id="account" v-cloak>
+    <div class="acct" v-if="isServer && acct">
+      <div class="acct-row">
+        <span>{{ acct.is_guest ? 'Playing as a guest —' : 'Signed in as' }}
+          <b>{{ acct.name }}</b><span class="gtag" v-if="acct.is_guest">guest</span></span>
+        <span class="acct-btns">
+          <button v-if="acct.is_guest" @click="show('claim')">Create account</button>
+          <button v-if="acct.is_guest" @click="show('login')">Log in</button>
+          <button v-if="!acct.is_guest" @click="show('rename')">Rename</button>
+          <button @click="toggleRanks">Leaderboards</button>
+          <button v-if="!acct.is_guest" @click="logout">Log out</button>
+        </span>
+      </div>
+      <div class="acct-form" v-if="authForm">
+        <input v-model="authName" :placeholder="authForm==='rename'?'new name':'name'" @keyup.enter="submitAuth">
+        <input v-if="authForm!=='rename'" v-model="authPass" type="password" placeholder="password" @keyup.enter="submitAuth">
+        <button class="prim" @click="submitAuth" :disabled="authBusy">{{ label }}</button>
+        <button @click="authForm=null">Cancel</button>
+      </div>
+      <div class="acct-note" v-if="authForm==='claim'">Give this guest a name &amp; password to keep your games and rank.</div>
+      <div class="acct-note" v-if="authForm==='login'">Log into an existing account (this device's guest games stay with the guest).</div>
+      <div class="nudge" v-if="acct.is_guest && !authForm">
+        You're playing as a guest — <a @click="show('claim')">create an account</a> to save your games and climb the per-game leaderboards.</div>
+      <div class="acct-rec" v-if="recoveryCode">Recovery code — save it, it's shown once: <b style="color:var(--facet)">{{ recoveryCode }}</b>
+        <button style="margin-left:8px" @click="recoveryCode=null">OK</button></div>
+      <div class="acct-lb" v-if="ranksOpen" style="margin-top:9px">
+        <div class="acct-row"><span class="acct-note" style="margin:0">Leaderboard</span>
+          <select v-model="lbGame" @change="loadRanks">
+            <option value="facet">FACET</option><option value="backbone">BACKBONE</option>
+            <option value="hyperscale">HYPERSCALE</option><option value="octachess">OCTA-CHESS</option>
+            <option value="hexago">HEXA-GO</option></select></div>
+        <div class="acct-note" v-if="!lbRows.length">No ranked players yet — finish a rated game to appear here.</div>
+        <template v-else>
+          <div class="lb-row" v-for="row in lbTop" :key="'t'+row.pos" :class="{me: row.name===myName}">
+            <span><span style="color:var(--muted)">{{ row.pos }}.</span> <b>{{ row.name }}</b>
+              <span style="color:var(--muted)" v-if="row.rank && row.rank!=='Unranked'"> · {{ row.rank }}</span></span>
+            <span>{{ row.rating }}</span></div>
+          <div class="lb-sep" v-if="lbGap">· · ·</div>
+          <div class="lb-row" v-for="row in lbAround" :key="'a'+row.pos" :class="{me: row.name===myName}">
+            <span><span style="color:var(--muted)">{{ row.pos }}.</span> <b>{{ row.name }}</b>
+              <span style="color:var(--muted)" v-if="row.rank && row.rank!=='Unranked'"> · {{ row.rank }}</span></span>
+            <span>{{ row.rating }}</span></div>
+          <div class="acct-note" v-if="!lbMine && myRating" style="margin-top:6px">
+            You: <b style="color:var(--ink)">{{ myRating.rating }}</b> —
+            {{ myRating.rated_games>=10 ? 'not in the top '+lbRows.length : 'unranked ('+myRating.rated_games+'/10 placement games)' }}</div>
+        </template>
+      </div>
+      <div class="acct-err" v-if="errorMsg">{{ errorMsg }}</div>
+    </div>
+  </div>
 
   <div class="grid">
     <a class="game facet" href="facet.html">
@@ -93,6 +165,42 @@ btn.addEventListener('click', async () => {
   deferred.prompt(); await deferred.userChoice; deferred = null; btn.style.display = 'none';
 });
 window.addEventListener('appinstalled', () => { btn.style.display = 'none'; });
+
+// ---- central account widget (one login shared by every game via the same token) ----
+const { createApp } = Vue;
+createApp({
+  data(){ return { adapter:null, acct:null, isServer:false, authForm:null, authName:'', authPass:'',
+    authBusy:false, recoveryCode:null, ranksOpen:false, lbRows:[], lbGame:'facet', errorMsg:null, _t:null }; },
+  computed:{
+    label(){ return {login:'Log in', claim:'Create', rename:'Rename'}[this.authForm]||'Submit'; },
+    myName(){ return this.acct ? this.acct.name : null; },
+    lbTop(){ return this.lbRows.slice(0,10); },
+    lbMine(){ return this.lbRows.find(r=>r.name===this.myName)||null; },
+    lbAround(){ if(!this.lbMine) return []; const rank=this.lbMine.pos;   // pos is 1-indexed
+      if(rank<=10) return [];                                            // already shown in the top 10
+      return this.lbRows.slice(Math.max(10, rank-3), rank+2); },         // window: you ±2, no overlap with top
+    lbGap(){ return this.lbAround.length>0 && this.lbAround[0].pos>11; },  // "···" only if there's a real gap
+    myRating(){ return (this.acct && this.acct.ratings) ? this.acct.ratings[this.lbGame] : null; },
+  },
+  methods:{
+    show(f){ this.authForm=this.authForm===f?null:f; this.authName=''; this.authPass=''; },
+    err(m){ this.errorMsg=m; clearTimeout(this._t); this._t=setTimeout(()=>this.errorMsg=null,4000); },
+    async submitAuth(){ const n=this.authName.trim(); if(!n) return; this.authBusy=true; let r;
+      if(this.authForm==='login') r=await this.adapter.login(n,this.authPass);
+      else if(this.authForm==='claim') r=await this.adapter.claim(n,this.authPass);
+      else if(this.authForm==='rename') r=await this.adapter.rename(n);
+      this.authBusy=false;
+      if(r&&r.error){ this.err(r.error); return; }
+      if(r&&r.recovery_code) this.recoveryCode=r.recovery_code;
+      this.authForm=null; this.authPass='';
+      const me=await this.adapter.me(); this.acct=me&&me.player?me.player:this.acct; },
+    async logout(){ await this.adapter.logout(); const r=await this.adapter.ensureAuth(); this.acct=r&&r.player?r.player:null; this.ranksOpen=false; },
+    async toggleRanks(){ this.ranksOpen=!this.ranksOpen; if(this.ranksOpen) this.loadRanks(); },
+    async loadRanks(){ const r=await this.adapter.leaderboard(this.lbGame); this.lbRows=(r&&r.leaderboard)||[]; },
+  },
+  async mounted(){ this.adapter=await createAdapter(); this.isServer=this.adapter.mode==='server';
+    if(this.isServer){ const me=await this.adapter.ensureAuth(); this.acct=me&&me.player?me.player:null; } }
+}).mount('#account');
 </script>
 </body>
 </html>

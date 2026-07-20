@@ -62,7 +62,7 @@
 <div id="app" class="wrap" v-cloak>
   <h1>HEXA-GO</h1>
   <p class="sub">Go on an equal-edge lattice — stones on the intersections.
-     <a href="./">⊞ Games</a> · <a href="octa-chess.html">OCTA-CHESS</a> · <a href="facet.html">FACET</a> · <a href="backbone.html">BACKBONE</a></p>
+     <a href="./">⊞ Games</a></p>
 
   <div class="layout">
     <div class="boardwrap">
@@ -96,31 +96,11 @@
     <div class="panel">
       <div class="card" v-if="errorMsg" style="border-color:#e0655b;color:#e0655b;font-size:13px">{{errorMsg}}</div>
 
-      <!-- account (only when a server is present) -->
-      <div class="card" v-if="isServer && acct">
-        <div class="row" style="justify-content:space-between;align-items:center;gap:6px">
-          <span style="font-size:14px"><b>{{acct.name}}</b> <span style="color:var(--muted)" v-if="acct.is_guest">(guest)</span></span>
-          <span class="row" style="gap:5px">
-            <button class="act" style="padding:5px 9px;font-size:12px" v-if="acct.is_guest" @click="authForm=authForm==='claim'?null:'claim'">Claim</button>
-            <button class="act" style="padding:5px 9px;font-size:12px" v-if="acct.is_guest" @click="authForm=authForm==='login'?null:'login'">Login</button>
-            <button class="act" style="padding:5px 9px;font-size:12px" @click="toggleLeaderboard">Ranks</button>
-            <button class="act" style="padding:5px 9px;font-size:12px" v-if="!acct.is_guest" @click="logout">Logout</button>
-          </span>
-        </div>
-        <div v-if="authForm" class="row" style="margin-top:8px;gap:6px">
-          <input v-model="authName" placeholder="name" @keyup.enter="submitAuth" style="flex:1;min-width:0;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
-          <input v-model="authPass" type="password" placeholder="password" @keyup.enter="submitAuth" style="flex:1;min-width:0;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
-          <button class="act primary" @click="submitAuth" :disabled="authBusy">{{authForm==='login'?'Login':authForm==='claim'?'Claim':'Register'}}</button>
-        </div>
-        <div v-if="authForm==='login'" style="margin-top:4px;font-size:12px;color:var(--muted)">No account? <a href="#" @click.prevent="authForm='register'" style="color:var(--hl)">Register</a></div>
-        <div v-if="lbOpen" style="margin-top:8px">
-          <div v-if="!lbRows.length" style="font-size:12px;color:var(--muted)">no rated games yet</div>
-          <div v-for="(row,i) in lbRows" :key="row.name" class="row" style="justify-content:space-between;font-size:13px">
-            <span><span style="color:var(--muted)">{{i+1}}.</span> <b>{{row.name}}</b></span><span>{{Math.round(row.rating)}}</span></div>
-        </div>
-        <div v-if="recoveryCode" style="margin-top:8px;padding:8px;background:#0c1020;border-radius:8px;font-size:12px">
-          Recovery code (save it): <b style="color:var(--hl)">{{recoveryCode}}</b>
-          <button class="act" style="padding:4px 8px;margin-left:8px" @click="recoveryCode=null">OK</button></div>
+      <!-- who you are (account &amp; leaderboards are managed on the ⊞ Games page) -->
+      <div class="card" v-if="isServer && acct" style="padding:10px 14px;font-size:13px;color:var(--muted)">
+        ● Playing as <b style="color:var(--ink)">{{ acct.name }}</b><span v-if="acct.is_guest"> · guest</span>
+        <span v-else-if="acct.ratings"> · {{ acct.ratings.hexago.rating }}<b v-if="acct.ratings.hexago.rank!=='Unranked'" style="color:var(--hl)"> · {{ acct.ratings.hexago.rank }}</b></span>
+        <a href="./" style="color:var(--hl);text-decoration:none;margin-left:6px" title="Account &amp; leaderboards">manage ⊞</a>
       </div>
 
       <div class="card">

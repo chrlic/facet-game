@@ -71,7 +71,7 @@
 <div id="app" class="wrap">
   <h1>HYPERSCALE</h1>
   <p class="sub">Claim ground, wire datacenters to shared power, staff them from your city, and equip them from the market.
-     <a href="./">⊞ Games</a> · <a href="facet.html">FACET</a> · <a href="backbone.html">BACKBONE</a> · <a href="octa-chess.html">OCTA-CHESS</a> · <a href="hexa-go.html">HEXA-GO</a></p>
+     <a href="./">⊞ Games</a></p>
 
   <div v-if="errorMsg" class="banner over">{{ errorMsg }}</div>
 
@@ -183,36 +183,11 @@
 
       <div class="side">
 
-        <!-- account (server present) -->
-        <div class="card" v-if="isServer && acct">
-          <div class="row between">
-            <span style="font-size:14px"><b>{{ acct.name }}</b>
-              <span class="muted" v-if="acct.is_guest">(guest — casual only)</span></span>
-            <span class="row" style="gap:5px">
-              <button v-if="acct.is_guest" @click="authForm=authForm==='claim'?null:'claim'">Claim</button>
-              <button v-if="acct.is_guest" @click="authForm=authForm==='login'?null:'login'">Login</button>
-              <button v-if="!acct.is_guest" @click="authForm=authForm==='rename'?null:'rename';authName=''" title="Rename">✎</button>
-              <button @click="toggleLeaderboard">Ranks</button>
-              <button v-if="!acct.is_guest" @click="logout">Logout</button>
-            </span>
-          </div>
-          <div v-if="authForm" class="row" style="margin-top:8px;gap:6px">
-            <input v-model="authName" :placeholder="authForm==='rename'?'new name':'name'" @keyup.enter="submitAuth"
-                   style="flex:1;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
-            <input v-if="authForm!=='rename'" v-model="authPass" type="password" placeholder="password" @keyup.enter="submitAuth"
-                   style="flex:1;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
-            <button class="primary" @click="submitAuth" :disabled="authBusy">{{ authForm==='login'?'Login':authForm==='claim'?'Claim':authForm==='rename'?'Rename':'Register' }}</button>
-          </div>
-          <div class="muted" v-if="authForm==='login'" style="margin-top:4px;font-size:12px">No account? <a href="#" @click.prevent="authForm='register'" style="color:var(--p1)">Register</a></div>
-          <div v-if="lbOpen" style="margin-top:8px">
-            <div v-if="!lbRows.length" class="muted" style="font-size:12px">no rated games yet</div>
-            <div v-for="(row,i) in lbRows" :key="row.name" class="row between" style="font-size:13px">
-              <span><span class="muted">{{ row.pos||i+1 }}.</span> <b>{{ row.name }}</b> <span class="muted" v-if="row.rank && row.rank!=='Unranked'">· {{ row.rank }}</span></span>
-              <span>{{ Math.round(row.rating) }}</span></div>
-          </div>
-          <div v-if="recoveryCode" style="margin-top:8px;padding:8px;background:#0c1020;border-radius:8px;font-size:12px">
-            Recovery code (shown once — save it): <b style="color:var(--hl)">{{ recoveryCode }}</b>
-            <button style="margin-left:8px" @click="recoveryCode=null">OK</button></div>
+        <!-- who you are (account &amp; leaderboards are managed on the ⊞ Games page) -->
+        <div class="card" v-if="isServer && acct" style="padding:10px 14px;font-size:13px">
+          <span class="muted">● Playing as</span> <b>{{ acct.name }}</b><span class="muted" v-if="acct.is_guest"> · guest</span>
+          <span class="muted" v-else-if="acct.ratings"> · {{ acct.ratings.hyperscale.rating }}<b v-if="acct.ratings.hyperscale.rank!=='Unranked'" style="color:var(--hl)"> · {{ acct.ratings.hyperscale.rank }}</b></span>
+          <a href="./" style="color:var(--p1);text-decoration:none;margin-left:6px" title="Account &amp; leaderboards">manage ⊞</a>
         </div>
 
         <!-- new game / lobby controls -->

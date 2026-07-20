@@ -194,10 +194,6 @@
   <h1>F A C E T</h1>
   <p class="sub">Your tile grants your move. Hold both thrones — or capture the enemy monarch.
      <a href="./" style="color:var(--hl);margin-left:8px" title="All games">⊞ Games</a>
-     <a href="backbone.html" style="color:var(--hl);margin-left:8px" title="Network-building hex strategy">BACKBONE →</a>
-     <a href="hyperscale.html" style="color:var(--hl);margin-left:8px" title="AI-datacenter economy — vs AI or online multiplayer">HYPERSCALE →</a>
-     <a href="octa-chess.html" style="color:var(--hl);margin-left:8px" title="Chess on an octagon-and-gate board — vs AI">OCTA-CHESS →</a>
-     <a href="hexa-go.html" style="color:var(--hl);margin-left:8px" title="Go on the octagon lattice — vs AI">HEXA-GO →</a>
      <span v-if="adapterMode==='local'" style="opacity:.5">(offline mode)</span></p>
 
   <div class="layout">
@@ -264,56 +260,13 @@
         </div>
       </div>
 
-      <!-- account (server mode only) -->
-      <div class="card" v-if="isOnline && me && me.player">
-        <div class="row" style="justify-content:space-between">
-          <span style="font-size:14px">
-            <b>{{ me.player.name }}</b>
-            <span class="muted" v-if="me.player.is_guest">(guest — casual games only)</span>
-            <span class="muted" v-else>
-              · {{ me.player.ratings.facet.rating }}
-              <b v-if="me.player.ratings.facet.rank!=='Unranked'" style="color:var(--sel)">{{ me.player.ratings.facet.rank }}</b>
-              <span v-else>({{ me.player.ratings.facet.rated_games }}/10 placement)</span>
-            </span>
-          </span>
-          <span class="row" style="gap:6px">
-            <a v-if="me.is_admin" href="admin.html" class="dlbtn"
-               style="text-decoration:none">Admin</a>
-            <button class="dlbtn" v-if="me.player.is_guest" @click="authForm=authForm==='claim'?null:'claim'">Claim account</button>
-            <button class="dlbtn" v-if="me.player.is_guest" @click="authForm=authForm==='login'?null:'login'">Login</button>
-            <button class="dlbtn" v-if="!me.player.is_guest" @click="authForm=authForm==='rename'?null:'rename';authName=''" title="Change your name">✎</button>
-            <button class="dlbtn" @click="toggleLeaderboard">Ranks</button>
-            <button class="dlbtn" v-if="!me.player.is_guest" @click="doLogout">Logout</button>
-          </span>
-        </div>
-        <div v-if="authForm" style="margin-top:8px">
-          <div class="row" style="gap:6px">
-            <input v-model="authName" :placeholder="authForm==='rename'?'new name':'name'"
-                   @keyup.enter="authForm==='rename'&&submitAuth()"
-                   style="flex:1;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
-            <input v-if="authForm!=='rename'" v-model="authPass" type="password" placeholder="password" @keyup.enter="submitAuth"
-                   style="flex:1;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:7px;font-size:13px">
-            <button @click="submitAuth" :disabled="authBusy">{{ authForm==='login'?'Login':authForm==='claim'?'Claim':authForm==='rename'?'Rename':'Register' }}</button>
-          </div>
-          <div class="muted" style="margin-top:4px" v-if="authForm==='login'">
-            No account yet? <a href="#" @click.prevent="authForm='register'" style="color:var(--hl)">Register</a>
-          </div>
-        </div>
-        <div v-if="lbOpen" style="margin-top:8px">
-          <div v-if="!lbRows.length" class="muted">No rated games played yet.</div>
-          <div v-for="row in lbRows" :key="row.name" class="row"
-               style="justify-content:space-between;font-size:13px;margin:2px 0">
-            <span><span class="muted">{{ row.pos }}.</span> <b>{{ row.name }}</b>
-              <span class="muted" v-if="row.rank!=='Unranked'">· {{ row.rank }}</span>
-              <span class="muted" v-else>· placement</span></span>
-            <span>{{ row.rating }} <span class="muted">({{ row.rated_games }})</span></span>
-          </div>
-        </div>
-        <div v-if="recoveryCode" style="margin-top:8px;padding:8px;background:#0c1020;border-radius:8px;font-size:13px">
-          Your recovery code (store it — it is shown only once):
-          <b style="color:var(--sel)">{{ recoveryCode }}</b>
-          <button class="dlbtn" style="margin-left:8px" @click="recoveryCode=null">Got it</button>
-        </div>
+      <!-- who you are (account &amp; leaderboards are managed on the ⊞ Games page) -->
+      <div class="card" v-if="isOnline && me && me.player" style="padding:10px 14px;font-size:13px">
+        <span class="muted">● Playing as</span> <b>{{ me.player.name }}</b><span class="muted" v-if="me.player.is_guest"> · guest</span>
+        <span class="muted" v-else> · {{ me.player.ratings.facet.rating }}
+          <b v-if="me.player.ratings.facet.rank!=='Unranked'" style="color:var(--sel)">{{ me.player.ratings.facet.rank }}</b></span>
+        <a v-if="me.is_admin" href="admin.html" style="color:var(--hl);text-decoration:none;margin-left:8px">Admin</a>
+        <a href="./" style="color:var(--hl);text-decoration:none;margin-left:8px" title="Account &amp; leaderboards">manage ⊞</a>
       </div>
 
       <div class="card">
