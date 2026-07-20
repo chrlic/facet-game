@@ -479,7 +479,9 @@
     }
     var best = 0, bestN = -1;                                 // most-simulated move (robust choice)
     for (var k2 = 0; k2 < C; k2++) if (plays[k2] > bestN) { bestN = plays[k2]; best = k2; }
-    return { pass: false, id: cands[best].id, sims: real, winrate: wins[best] / plays[best] };
+    var dist = null;   // opts.visits: full root visit distribution (policy target for net training)
+    if (opts && opts.visits) { dist = []; for (var dd = 0; dd < C; dd++) dist.push([cands[dd].id, plays[dd] - PRIOR]); }
+    return { pass: false, id: cands[best].id, sims: real, winrate: wins[best] / plays[best], dist: dist };
   }
 
   var HEXAGO = {
@@ -488,7 +490,8 @@
     board: function () { return { type: CUR.type, points: PTS, adj: ADJ, size: NP, hull: CUR.hull, edgePx: CUR.edgePx, bd: BD }; },
     get points() { return PTS; }, get adj() { return ADJ; }, get size() { return NP; },
     initial: initial, clone: clone, isLegal: isLegal, legalMoves: legalMoves,
-    play: play, pass: pass, ended: ended, score: score, scoreLive: scoreLive, scoreFinal: scoreFinal, scoreArea: scoreArea, status: status, group: group, aiMove: aiMove
+    play: play, pass: pass, ended: ended, score: score, scoreLive: scoreLive, scoreFinal: scoreFinal, scoreArea: scoreArea, status: status, group: group, aiMove: aiMove,
+    rollout: function (state) { return score(runPlayout(state)).winner; }   // one heavy playout -> winner (for net-PUCT leaf eval)
   };
   if (typeof module !== "undefined" && module.exports) module.exports = HEXAGO;
   global.HEXAGO = HEXAGO;
