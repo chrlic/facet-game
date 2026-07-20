@@ -1,4 +1,4 @@
-const CACHE = "hyperscale-v1";
+const CACHE = "hyperscale-v3";
 const ASSETS = [
   "./hyperscale.html",
   "./hyperscale_engine.js",

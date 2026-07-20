@@ -325,13 +325,15 @@
 
         <!-- download game state + full move log (offline; no server) -->
         <div class="card">
-          <b style="font-size:13px">Save / bug report</b>
-          <textarea v-model="bugNote" rows="2" placeholder="Optional note — what looked off…"
+          <b style="font-size:13px">Bug report</b>
+          <textarea v-model="bugNote" rows="2" placeholder="Describe what went wrong or looked off…"
                     style="width:100%;resize:vertical;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:8px;margin-top:8px;font-size:13px;font-family:inherit"></textarea>
           <div class="row" style="margin-top:8px">
-            <button @click="downloadGame">Download game + moves</button>
+            <button v-if="isServer" @click="submitReport" :disabled="reportBusy">Submit to server</button>
+            <button @click="downloadGame">Download report</button>
           </div>
-          <div class="muted" style="margin-top:6px;font-size:11px">Saves current status and every move as a JSON file you can share.</div>
+          <div v-if="reportMsg" style="margin-top:6px;font-size:12px;color:var(--hl)">{{reportMsg}}</div>
+          <div v-else class="muted" style="margin-top:6px;font-size:11px">Bundles current status + every move so we can reproduce it.</div>
         </div>
       </div>
     </div>
@@ -351,7 +353,7 @@ createApp({
     gid:null, gameMeta:null, gameV:-1, _pollSeq:0, isPvp:false,
     diffChoice:'normal', seekRated:false, seeks:[], myGames:[], _lobbyTimer:null,
     authForm:null, authName:'', authPass:'', authBusy:false, recoveryCode:null,
-    errorMsg:null, _errT:null, lbOpen:false, lbRows:[],
+    errorMsg:null, _errT:null, lbOpen:false, lbRows:[], reportBusy:false, reportMsg:null, _oppRunning:false,
     showCoords: localStorage.getItem("hs_coords")!=="0",
     showAiExplain: localStorage.getItem("hs_explain")!=="0", aiExplainHistory:[] }; },
   computed:{
@@ -489,14 +491,23 @@ createApp({
     },
     async opponentLoop(){
       if(this.isPvp){ this.pvpPoll(); return; }
-      const gid=this.gid, seq=this._pollSeq; this.match.aiChanges=[]; this.aiExplainHistory=[];
+      if(this._oppRunning) return;            // only ONE AI loop at a time (never multiply AI requests)
+      this._oppRunning=true;
+      const gid=this.gid, seq=this._pollSeq; this.match.aiChanges=[]; this.aiExplainHistory=[]; let backoff=0;
       while(this.gid===gid && this._pollSeq===seq && this.match.board.winner===null && this.match.board.to_move!==this.humanSide){
-        const r=await this._call(()=>this.adapter.aiMove(gid));
-        if(this.gid!==gid || this._pollSeq!==seq) return;
-        if(!r || r.error || !r.move) break;
+        let r=null; try{ r=await this.adapter.aiMove(gid); }catch(e){ r={error:'network error'}; }
+        if(this.gid!==gid || this._pollSeq!==seq) break;
+        if(r && r.error){                     // server throttling / transient: wait & RETRY (never stick)
+          this.showError(r.error);
+          backoff=Math.min(backoff?backoff*2:2500, 15000);
+          await new Promise(res=>setTimeout(res, backoff)); continue;
+        }
+        if(!r || !r.move) break;
+        backoff=0;
         if(r.info && r.info.explain && r.move.a!=='pass') this.aiExplainHistory.push(r.info.explain);
         this.match.applyRemote(r.move); this.sync(); this._syncMeta(r);
       }
+      this._oppRunning=false;
       if(this.match.board.winner!==null) this.refreshLobby();
     },
     async pvpPoll(){
@@ -673,6 +684,22 @@ createApp({
       a.click();
       URL.revokeObjectURL(a.href);
     },
+    // submit the same context to the server (online) so it's stored for review — consistent w/ other games
+    async submitReport(){
+      if(this.reportBusy) return;
+      const desc=(this.bugNote||'').trim();
+      if(!desc){ this.showError('Please describe the problem before submitting.'); return; }
+      this.reportBusy=true; this.reportMsg=null;
+      const info={ online:this.online, your_side:this.humanSide, gameMeta:this.gameMeta||null,
+        browser:navigator.userAgent, screen:{width:window.innerWidth,height:window.innerHeight},
+        ...(this.match?this.match.exportGame():{}) };
+      try{
+        const r=await this.adapter.submitReport({ description:desc, game_id:this.gid||null, client_info:info });
+        if(r && r.error){ this.showError(r.error); }
+        else { this.bugNote=''; this.reportMsg='Thanks — your report was submitted for review.'; }
+      }catch(e){ this.showError('Could not submit the report. Please try again.'); }
+      this.reportBusy=false;
+    },
     endDay(){ this.act({a:"pass"}); },
   },
   async mounted(){
@@ -685,8 +712,9 @@ createApp({
       this._lobbyTimer = setInterval(()=>{ if(!this.gid && this.isServer) this.refreshLobby(); }, 8000);
       const resume = this.myGames.find(g=>g.your_turn) || this.myGames[0];
       if(resume){ this.openGame(resume.id); return; }
+      this.playAiOnline(); return;   // default to an ONLINE (archived) game — "Practice offline" opts out
     }
-    this.newGame();   // land straight on the board with an offline practice game
+    this.newGame();   // no server reachable → offline practice game
   },
 }).mount("#app");
 if('serviceWorker' in navigator) navigator.serviceWorker.register('hs-sw.js', {scope: './hyperscale.html'});

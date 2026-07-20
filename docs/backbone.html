@@ -412,7 +412,7 @@ createApp({
     me:null, id:null, state:null, gameMeta:null, gameV:-1, _pollSeq:0,
     humanSide:0, sideChoice:"0", difficulty:"normal",
     selectedTool:null, rerouteFrom:null, pendingServer:null,
-    busy:false, errorMsg:null, _errT:null, noticeMsg:null, _notT:null,
+    busy:false, errorMsg:null, _errT:null, noticeMsg:null, _notT:null, _oppRunning:false,
     showRules:false, seekRated:false,
     bugDescription:'', reportBusy:false,
     bbSeeks:[], bbGames:[], _lobbyTimer:null, hadSeek:false, _seen:{},
@@ -759,17 +759,26 @@ createApp({
       if(!this.isPvp && this.state.to_move!==this.humanSide) await this.aiLoop();
     },
     async aiLoop(){
-      const gid=this.id, seq=this._pollSeq;
+      if(this._oppRunning) return;            // only ONE AI loop at a time (never multiply AI requests)
+      this._oppRunning=true;
+      const gid=this.id, seq=this._pollSeq; let backoff=0;
       this.aiExplainHistory=[];
       while(this.id===gid && this._pollSeq===seq && this.state
             && this.state.winner===null
             && this.state.to_move!==this.humanSide){
-        const r=await this._call(()=>this.adapter.aiMove(gid));
-        if(this.id!==gid||this._pollSeq!==seq) return;
-        if(r.error) return;
+        let r=null; try{ r=await this.adapter.aiMove(gid); }catch(e){ r={error:'network error'}; }
+        if(this.id!==gid||this._pollSeq!==seq) break;
+        if(r && r.error){                     // server throttling / transient: wait & RETRY (never stick)
+          this.showError(r.error);
+          backoff=Math.min(backoff?backoff*2:2500, 15000);
+          await new Promise(res=>setTimeout(res, backoff)); continue;
+        }
+        if(!r) break;
+        backoff=0;
         if(this.showAiExplain && r.info && r.info.explain) this.aiExplainHistory.push(r.info.explain);
         this.applyGame(r);
       }
+      this._oppRunning=false;
       if(this.winner!==null) this.refreshLobby();
     },
     toggleCoords(){

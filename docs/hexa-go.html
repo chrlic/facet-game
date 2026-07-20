@@ -192,6 +192,24 @@
           <p style="opacity:.7">The AI uses Monte-Carlo playouts — it thinks about a second per move.</p>
         </details>
       </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <b style="font-size:13px">Bug report</b>
+          <span style="color:var(--muted);font-size:12px">score or rules looking wrong? tell us</span>
+        </div>
+        <textarea v-model="bugText" rows="3"
+                  placeholder="Describe what went wrong or looked off (e.g. dead stones / territory not counted)…"
+                  style="width:100%;resize:vertical;background:#0c1020;color:var(--ink);
+                         border:1px solid #33415f;border-radius:8px;padding:8px;
+                         font-size:13px;font-family:inherit"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="act" v-if="isServer" @click="submitReport" :disabled="reportBusy"
+                  style="padding:7px 12px;font-size:13px">Submit to server</button>
+          <button class="act" @click="downloadReport" style="padding:7px 12px;font-size:13px">Download report</button>
+        </div>
+        <div v-if="reportMsg" style="margin-top:8px;font-size:12px;color:var(--hl)">{{reportMsg}}</div>
+      </div>
     </div>
   </div>
 </div>
@@ -216,6 +234,7 @@ createApp({
       seeks:[], myGames:[], seekRated:false,
       authForm:null, authName:'', authPass:'', authBusy:false, recoveryCode:null,
       lbOpen:false, lbRows:[], errorMsg:null, _errT:null,
+      bugText:'', reportBusy:false, reportMsg:null, _oppRunning:false,
       _worker:null, _workerBad:false, _aiReq:0, _aiPending:null, _aiTimer:null, _aiWatch:null,   // off-thread AI (Web Worker)
     };
   },
@@ -233,7 +252,7 @@ createApp({
     stones(){ const c=this.state.color, pts=this.board.points, out=[];
       for(let i=0;i<c.length;i++) if(c[i]) out.push({id:i, x:pts[i].x, y:pts[i].y, c:c[i]}); return out; },
     lastPt(){ const l=this.state.last; if(l<0) return null; const p=this.board.points[l]; return {x:p.x, y:p.y, c:3-this.state.turn}; },
-    sc(){ const s=(this.over && this.scoreView) ? this.scoreView : GO.scoreLive(this.state);
+    sc(){ const s=this.scoreView ? this.scoreView : GO.scoreLive(this.state);
       return { black:(s.black%1?s.black.toFixed(1):s.black), white:(s.white%1?s.white.toFixed(1):s.white),
                terrB:s.terrB, terrW:s.terrW, capB:s.capB, capW:s.capW }; },
     territory(){ if(!this.over || !this.scoreView) return [];
@@ -244,16 +263,26 @@ createApp({
       } return out; },
     canUndo(){ return this.history.length>0 && !this.thinking && !this.online; },
     lastPass(){ if(this.over||this.state.passes<1) return null; return (3-this.turn)===1?'Black':'White'; },
-    resultClass(){ const r=this.scoreView?this.scoreView.winner:this.statusInfo.result;
-      if(r==='draw'||!r) return '';
+    // the SERVER's official result for an online finished game (its own score is authoritative, so the
+    // client never contradicts it with its independent Monte-Carlo). null = not an online decided game.
+    srvWinner(){
+      if(!this.online || !this.gameMeta || !this.gameMeta.status || this.gameMeta.status==='active') return null;
+      if(this.gameMeta.status==='aborted') return 'aborted';
+      const w=this.gameMeta.winner;
+      if(w==='draw'||w===null||w===undefined) return 'draw';
+      return Number(w)===1?'black':'white';   // Black = side 1, White = side 0
+    },
+    resultClass(){ const r=this.srvWinner || (this.scoreView?this.scoreView.winner:this.statusInfo.result);
+      if(r==='draw'||r==='aborted'||!r) return '';
       return (r==='black'&&this.playerColor===1)||(r==='white'&&this.playerColor===2)?'win':'warn'; },
     statusText(){
-      // online game ended off-board (resign / abort)
-      if(this.online && this.gameMeta && this.gameMeta.status && this.gameMeta.status!=='active' && !this.statusInfo.over){
-        if(this.gameMeta.status==='aborted') return 'Game aborted';
-        const w=this.gameMeta.winner;
-        if(w==='draw'||w===null) return 'Draw';
-        return (Number(w)===this.humanSide) ? 'You win — '+(this.gameMeta.win_type||'resignation') : 'You lose — '+(this.gameMeta.win_type||'resignation'); }
+      const sv=this.srvWinner;
+      if(sv){   // online, game decided by the server — its result is final
+        if(sv==='aborted') return 'Game aborted';
+        if(sv==='draw') return 'Draw';
+        const wt=this.gameMeta.win_type;
+        const tail = (wt && wt!=='victory') ? ' — '+wt : '';
+        return (sv==='black'?'Black':'White')+' wins'+tail; }
       if(this.over && this.scoreView){ const s=this.scoreView;
         if(s.winner==='draw') return 'Draw';
         return (s.winner==='black'?'Black':'White')+' wins by '+Math.abs(s.margin).toFixed(1); }
@@ -340,8 +369,15 @@ createApp({
     refresh(){ this.statusInfo=GO.status(this.state);
       const passEnd=this.statusInfo.over;
       this.over = passEnd || !!(this.online && this.gameMeta && this.gameMeta.status && this.gameMeta.status!=='active');
-      // score by Monte-Carlo ownership only when the game ends by two passes (robust dead-stone territory)
-      this.scoreView = passEnd ? GO.scoreFinal(this.state, 340) : null; },
+      // Score by Monte-Carlo ownership — it resolves dead stones (a dead group inside a living area
+      // becomes the surrounder's territory + prisoners) which flood-fill cannot. Full budget at game
+      // end; a lighter live estimate once there are enough stones for territory to be meaningful (the
+      // opening stays instant and shows ~no territory, avoiding phantom early-game points).
+      // Final: deterministic territory (MC only decides dead stones) so every enclosed region is
+      // counted + shaded in full. Live: conservative MC estimate (deterministic flood-fill would
+      // over-count an unsettled/open board).
+      this.scoreView = this.over ? GO.scoreArea(this.state, 260)
+                     : (this.state.moveNo >= 6 ? GO.scoreFinal(this.state, 80) : null); },
     undo(){
       if(!this.history.length || this.online) return;
       this.state=this.history.pop();
@@ -352,6 +388,41 @@ createApp({
     _call(fn){ return (async()=>{ try{ const r=await fn(); if(r&&r.error) this.showError(r.error); return r; }
       catch(e){ this.showError('network error'); return null; } })(); },
     showError(m){ this.errorMsg=m; clearTimeout(this._errT); this._errT=setTimeout(()=>this.errorMsg=null,4000); },
+    // ---- bug report (server already holds the move log via game_id; we add the client context) ----
+    _reportInfo(){
+      const s=this.state;
+      return {
+        board:{ type:this.online?'tri':this.boardChoice, size:this.online?'m':this.sizeChoice },
+        online:this.online, your_color:this.playerColor, over:this.over,
+        state:{ color:Array.from(s.color), turn:s.turn, passes:s.passes, moveNo:s.moveNo,
+                last:s.last, ko:s.ko, caps:{1:s.caps[1],2:s.caps[2]} },
+        score:this.scoreView || null,           // exactly what the score card showed (MC breakdown)
+        game_meta:this.gameMeta || null,
+        browser:navigator.userAgent, screen:{width:window.innerWidth,height:window.innerHeight},
+      };
+    },
+    async submitReport(){
+      if(this.reportBusy) return;
+      const desc=(this.bugText||'').trim();
+      if(!desc){ this.showError('Please describe the problem before submitting.'); return; }
+      this.reportBusy=true; this.reportMsg=null;
+      try{
+        const r=await this.adapter.submitReport({ description:desc, game_id:this.gid||null, client_info:this._reportInfo() });
+        if(r && r.error){ this.showError(r.error); }
+        else { this.bugText=''; this.reportMsg='Thanks — your report was submitted for review.'; }
+      }catch(e){ this.showError('Could not submit the report. Please try again.'); }
+      this.reportBusy=false;
+    },
+    async downloadReport(){
+      let serverLog=[]; if(this.gid){ try{ const d=await this.adapter.getLog(this.gid); if(d&&d.log) serverLog=d.log; }catch(e){} }
+      const report={ report_type:'hexago_bug_report', downloaded:new Date().toISOString(),
+        description:this.bugText||'(no description provided)', game_id:this.gid||null,
+        move_log:serverLog, client_info:this._reportInfo() };
+      const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download=`hexago-report-${this.gid||'offline'}.json`; a.click(); URL.revokeObjectURL(a.href);
+      this.reportMsg='Report downloaded.';
+    },
     _syncMeta(r){ if(r&&r.meta) this.gameMeta=r.meta; if(r&&r.v!==undefined) this.gameV=r.v; this.refresh(); },
     _enterGame(gid, humanSide, isPvp, meta, v){
       this._pollSeq++; this.online=true; this.gid=gid; this.isPvp=!!isPvp;
@@ -376,14 +447,21 @@ createApp({
     },
     async opponentLoop(){
       if(this.isPvp){ this.pvpPoll(); return; }
-      const gid=this.gid, seq=this._pollSeq; this.thinking=true;
+      if(this._oppRunning) return;            // only ONE AI loop at a time (never multiply AI requests)
+      this._oppRunning=true;
+      const gid=this.gid, seq=this._pollSeq; this.thinking=true; let backoff=0;
       while(this.gid===gid && this._pollSeq===seq && !this.over && this.turn!==this.playerColor){
-        const r=await this._call(()=>this.adapter.aiMove(gid));
-        if(this.gid!==gid || this._pollSeq!==seq){ this.thinking=false; return; }
-        if(!r||r.error||!r.move) break;
-        this.applyServerAction(r.move); this._syncMeta(r);
+        let r=null; try{ r=await this.adapter.aiMove(gid); }catch(e){ r={error:'network error'}; }
+        if(this.gid!==gid || this._pollSeq!==seq) break;
+        if(r && r.error){                     // server throttling ("too many AI requests") / transient:
+          this.showError(r.error);            // wait & RETRY with backoff so the AI never stays stuck
+          backoff=Math.min(backoff?backoff*2:2500, 15000);
+          await new Promise(res=>setTimeout(res, backoff)); continue;
+        }
+        if(!r || !r.move) break;              // genuinely no move (game ended)
+        backoff=0; this.applyServerAction(r.move); this._syncMeta(r);
       }
-      this.thinking=false; if(this.over) this.refreshLobby();
+      this._oppRunning=false; this.thinking=false; if(this.over) this.refreshLobby();
     },
     async pvpPoll(){
       const gid=this.gid, seq=++this._pollSeq;
@@ -451,7 +529,9 @@ createApp({
       const me=await this.adapter.ensureAuth(); this.acct=me&&me.player?me.player:null;
       await this.refreshLobby();
       const resume=(this.myGames||[]).find(g=>g.your_turn)||this.myGames[0];
-      if(resume) this.openGame(resume.id); else this.newGame();
+      // With a server present, default to an ONLINE game so play is archived (like FACET). Offline is
+      // the explicit "Practice offline" button. Resume an existing game if there is one (no DB spam).
+      if(resume) this.openGame(resume.id); else this.playAiOnline();
       this._lobbyTimer=setInterval(()=>{ if(!this.gid && this.isServer) this.refreshLobby(); }, 8000);
     } else {
       this.newGame();

@@ -160,9 +160,10 @@ class RateLimiter:
 
 # per-IP: account actions (register/login/guest/claim/recover/rename/logout)
 AUTH_LIMITER = RateLimiter(limit=10, window_s=60)
-# per-user: AI move requests — the one CPU-heavy call (env-tunable)
+# per-user: AI move requests — the one CPU-heavy call (env-tunable). 60/min ~= one move every second,
+# enough for fast turn-based play; clients also back off + retry on a throttle so the AI never sticks.
 AI_LIMITER = RateLimiter(
-    limit=int(os.environ.get("FACET_AI_RATE", 30)), window_s=60)
+    limit=int(os.environ.get("FACET_AI_RATE", 60)), window_s=60)
 # per-user: game and seek creation
 ACTION_LIMITER = RateLimiter(
     limit=int(os.environ.get("FACET_ACTION_RATE", 30)), window_s=60)

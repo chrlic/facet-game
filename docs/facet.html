@@ -305,6 +305,9 @@
             <option value="hard">Hard (slow)</option>
           </select>
           <button class="primary" @click="newGame">New game</button>
+          <button class="dlbtn" v-if="isOnline" @click="practiceOffline"
+                  title="Play locally against the AI — this game won't be saved to your online archive">Practice offline</button>
+          <button class="dlbtn" v-if="forcedLocal" @click="goOnline" title="Reconnect to the server">Back online</button>
           <button :class="['helpbtn', {active:showRules}]" @click="showRules=!showRules" title="Rules &amp; help">?</button>
         </div>
         <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;margin-top:6px">
@@ -462,7 +465,7 @@
 const { createApp } = Vue;
 createApp({
   data(){return{
-    adapter:null, adapterMode:'detecting...',
+    adapter:null, adapterMode:'detecting...', forcedLocal:false,
     id:null, state:null, difficulty:"normal", boardId:"classic",
     boards:{}, modeDecay:false, modeFog:false, modeMomentum:false,
     sideChoice:'0',          // '0' white, '1' black, 'random'
@@ -663,6 +666,25 @@ createApp({
         if(this.gameMeta) mg.ply=this.gameMeta.ply;
       }
     },
+    // explicit offline: force the local adapter (game NOT saved to the server archive). "Back online"
+    // reconnects. Consistent with the other games' "Practice offline" toggle.
+    async practiceOffline(){
+      this.forcedLocal=true; this.adapter=new LocalAdapter(); this.adapterMode='local'; this.me=null;
+      const r=await this.adapter.getBoards(); if(r.boards) this.boards=r.boards;
+      this.newGame();
+    },
+    async goOnline(){
+      this.adapter=await createAdapter(); this.adapterMode=this.adapter.mode; this.forcedLocal=false;
+      if(this.isOnline){
+        this.me=await this.adapter.ensureAuth();
+        if(this.me && this.me.error){ this.showError(this.me.error); this.me=null; }
+        if(!this._lobbyTimer) this._lobbyTimer=setInterval(()=>this.refreshLobby(), 5000);
+      }
+      const b=await this.adapter.getBoards(); if(b.boards) this.boards=b.boards;
+      await this.refreshLobby();
+      const resume=(this.myGames||[]).find(g=>g.your_turn)||this.myGames[0];
+      if(resume) this.openGame(resume.id); else this.newGame();
+    },
     async newGame(){
       this.busy=true; this._resetGameUi();
       const side = this.sideChoice==='random' ? (Math.random()<0.5?0:1) : Number(this.sideChoice);
@@ -795,8 +817,16 @@ createApp({
     async aiTurn(){
       this.aiThinking=true; this.busy=true;
       await new Promise(r=>setTimeout(r,50));
-      const r=await this._call(()=>this.adapter.aiMove(this.id));
-      if(r.error){ this.aiThinking=false; this.busy=false; return; }
+      const gid=this.id; let r=null, backoff=0;
+      while(true){                            // retry through server throttling ("too many AI requests")
+        try{ r=await this.adapter.aiMove(this.id); }catch(e){ r={error:e.message||'network error'}; }
+        if(this.id!==gid || this.winner!==null){ this.aiThinking=false; this.busy=false; return; }
+        if(!r || !r.error) break;
+        this.showError(r.error);              // wait & retry with backoff so the AI never stays stuck
+        backoff=Math.min(backoff?backoff*2:2500, 15000);
+        await new Promise(res=>setTimeout(res, backoff));
+      }
+      if(!r || r.error){ this.aiThinking=false; this.busy=false; return; }
       this.applyGame(r);
       if(r.move){ this.showLastMove(r.move); this.logEvent('ai_move',{move:r.move,info:r.info}); }
       if(r.info) this.lastInfo=r.info;

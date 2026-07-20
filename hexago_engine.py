@@ -228,7 +228,11 @@ def _random_playout(state):
             if _is_eye(col, idx, st["turn"]):
                 continue
             if BD[idx] == 0 and random.random() < 0.8:
-                continue
+                # usually skip the 1st line, but NEVER a capture (a capture must touch an enemy) —
+                # otherwise dead groups on the edge survive and their territory goes uncounted
+                en = 3 - st["turn"]
+                if not any(col[n] == en for n in ADJ[idx]):
+                    continue
             r = try_place(st, idx)
             if r is None:
                 continue
@@ -289,6 +293,137 @@ def score_final(state, playouts=180):
     black = terr_b + cap_b; white = terr_w + cap_w + KOMI
     return {"black": black, "white": white, "terrB": terr_b, "terrW": terr_w,
             "capB": cap_b, "capW": cap_w, "komi": KOMI, "margin": black - white,
+            "winner": "black" if black > white else ("white" if white > black else "draw")}
+
+
+def _pass_alive(col, C, pa, surv):  # noqa: C901
+    """Benson's algorithm for colour C: mark pass-alive C stones in pa[], collect the regions they seal."""
+    chain_id = [-1] * NP; nc = 0
+    for i in range(NP):
+        if col[i] != C or chain_id[i] >= 0:
+            continue
+        cid = nc; nc += 1; st = [i]; chain_id[i] = cid
+        while st:
+            v = st.pop()
+            for u in ADJ[v]:
+                if col[u] == C and chain_id[u] < 0:
+                    chain_id[u] = cid; st.append(u)
+    region_id = [-1] * NP; regions = []
+    for i in range(NP):
+        if col[i] == C or region_id[i] >= 0:
+            continue
+        rid = len(regions); st = [i]; pts = []; empties = []; bset = set(); region_id[i] = rid
+        while st:
+            v = st.pop(); pts.append(v)
+            if col[v] == 0:
+                empties.append(v)
+            for u in ADJ[v]:
+                if col[u] == C:
+                    bset.add(chain_id[u])
+                elif region_id[u] < 0:
+                    region_id[u] = rid; st.append(u)
+        border = list(bset); vital = []
+        for cx in border:
+            if all(any(chain_id[n] == cx for n in ADJ[e]) for e in empties):
+                vital.append(cx)
+        regions.append((pts, border, vital))
+    nr = len(regions); chain_dead = [False] * nc; region_gone = [False] * nr; changed = True
+    while changed:
+        changed = False
+        for c in range(nc):
+            if chain_dead[c]:
+                continue
+            cnt = sum(1 for ri in range(nr) if not region_gone[ri] and c in regions[ri][2])
+            if cnt < 2:
+                chain_dead[c] = True; changed = True
+        for ri in range(nr):
+            if region_gone[ri]:
+                continue
+            if any(chain_dead[b] for b in regions[ri][1]):
+                region_gone[ri] = True; changed = True
+    for i in range(NP):
+        if col[i] == C and not chain_dead[chain_id[i]]:
+            pa[i] = C
+    for ri in range(nr):
+        if not region_gone[ri]:
+            surv.append(regions[ri][0])
+
+
+def _benson_dead(col):
+    """Deterministic dead stones: an enemy stone sealed inside a pass-alive region and not itself
+    pass-alive is provably dead. Catches enclosed groups MC playouts sometimes fail to capture."""
+    pa = [0] * NP; surv_b = []; surv_w = []
+    _pass_alive(col, 1, pa, surv_b)
+    _pass_alive(col, 2, pa, surv_w)
+    dead = [0] * NP
+    for reg in surv_b:
+        for p in reg:
+            if col[p] == 2 and pa[p] != 2:
+                dead[p] = 1
+    for reg in surv_w:
+        for p in reg:
+            if col[p] == 1 and pa[p] != 1:
+                dead[p] = 1
+    return dead
+
+
+def score_area(state, playouts=80):  # noqa: C901
+    """FINAL area score for a settled (two-pass) position — mirrors the client's scoreArea. Dead stones
+    = Benson (provably dead, unconditional) UNION a Monte-Carlo check; territory is then counted
+    DETERMINISTICALLY by flood-fill so no clearly-enclosed region is left uncounted. Benson catches the
+    enclosed groups deterministically, so a light MC (80) suffices for the rest — keeps the server fast."""
+    base = clone(state); base["passes"] = 0; base["last"] = -1
+    bc = [0] * NP; wc = [0] * NP
+    for _ in range(playouts):
+        o = _area_owners(_random_playout(base)["color"])
+        for i in range(NP):
+            if o[i] == 1:
+                bc[i] += 1
+            elif o[i] == 2:
+                wc[i] += 1
+    # 1. remove dead stones (Benson OR Monte-Carlo)
+    b_dead = _benson_dead(state["color"])
+    T = 0.6; col = list(state["color"]); pris_b = pris_w = 0
+    for i in range(NP):
+        cur = col[i]
+        if cur == 0:
+            continue
+        is_dead = b_dead[i] or (cur == 2 and bc[i] / playouts >= T) or (cur == 1 and wc[i] / playouts >= T)
+        if not is_dead:
+            continue
+        col[i] = 0
+        if cur == 2:
+            pris_b += 1
+        else:
+            pris_w += 1
+    # 2. deterministic territory on the cleaned board
+    own = [0] * NP; seen = [False] * NP; terr_b = terr_w = 0
+    for i in range(NP):
+        if col[i]:
+            own[i] = col[i]
+    for i in range(NP):
+        if col[i] != 0 or seen[i]:
+            continue
+        stack = [i]; region = []; border = 0; seen[i] = True
+        while stack:
+            v = stack.pop(); region.append(v)
+            for u in ADJ[v]:
+                if col[u] == 0:
+                    if not seen[u]:
+                        seen[u] = True; stack.append(u)
+                else:
+                    border |= col[u]
+        owner = 1 if border == 1 else 2 if border == 2 else 0
+        for r in region:
+            own[r] = owner
+        if owner == 1:
+            terr_b += len(region)
+        elif owner == 2:
+            terr_w += len(region)
+    cap_b = state["caps"][1] + pris_b; cap_w = state["caps"][2] + pris_w
+    black = terr_b + cap_b; white = terr_w + cap_w + KOMI
+    return {"black": black, "white": white, "terrB": terr_b, "terrW": terr_w,
+            "capB": cap_b, "capW": cap_w, "komi": KOMI, "own": own, "margin": black - white,
             "winner": "black" if black > white else ("white" if white > black else "draw")}
 
 
@@ -391,7 +526,7 @@ class Board:
     def winner(self):
         if not ended(self.state):
             return None
-        w = score_final(self.state)["winner"]
+        w = score_area(self.state)["winner"]
         return "draw" if w == "draw" else (1 if w == "black" else 0)   # Black=side 1, White=side 0
 
 
@@ -406,7 +541,7 @@ def serialize(board, draw_agreed=False):
     if draw_agreed:
         winner = "draw"
     elif ended(s):
-        w = score_final(s)["winner"]
+        w = score_area(s)["winner"]
         winner = "draw" if w == "draw" else (1 if w == "black" else 0)
     return {"turn": s["turn"], "passes": s["passes"], "caps": s["caps"],
             "moveNo": s["moveNo"], "over": over, "winner": winner, "legal": []}

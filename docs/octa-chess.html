@@ -227,6 +227,22 @@
           them shut. The fight is for the four central gates. Checkmate wins.</p>
         </details>
       </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <b style="font-size:13px">Bug report</b>
+          <span style="color:var(--muted);font-size:12px">something looking wrong? tell us</span>
+        </div>
+        <textarea v-model="bugText" rows="3" placeholder="Describe what went wrong or looked off…"
+                  style="width:100%;resize:vertical;background:#0c1020;color:var(--ink);
+                         border:1px solid #33415f;border-radius:8px;padding:8px;font-size:13px;font-family:inherit"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="act" v-if="isServer" @click="submitReport" :disabled="reportBusy"
+                  style="padding:7px 12px;font-size:13px">Submit to server</button>
+          <button class="act" @click="downloadReport" style="padding:7px 12px;font-size:13px">Download report</button>
+        </div>
+        <div v-if="reportMsg" style="margin-top:8px;font-size:12px;color:var(--hl)">{{reportMsg}}</div>
+      </div>
     </div>
   </div>
 
@@ -289,6 +305,7 @@ createApp({
       seeks:[], myGames:[], seekRated:false,
       authForm:null, authName:'', authPass:'', authBusy:false, recoveryCode:null,
       lbOpen:false, lbRows:[], errorMsg:null, _errT:null,
+      bugText:'', reportBusy:false, reportMsg:null, _oppRunning:false,
     };
   },
   computed: {
@@ -400,6 +417,37 @@ createApp({
     _call(fn){ return (async()=>{ try{ const r=await fn(); if(r&&r.error) this.showError(r.error); return r; }
       catch(e){ this.showError('network error'); return null; } })(); },
     showError(m){ this.errorMsg=m; clearTimeout(this._errT); this._errT=setTimeout(()=>this.errorMsg=null,4000); },
+    // ---- bug report (consistent across all games; server already has the move log via game_id) ----
+    _reportInfo(){
+      return {
+        online:this.online, your_side:this.humanSide, warden:!!this.useWarden,
+        board_state:this.state, gameMeta:this.gameMeta||null,
+        status:this.statusInfo||null, move_count:this.history?this.history.length:0,
+        browser:navigator.userAgent, screen:{width:window.innerWidth,height:window.innerHeight},
+      };
+    },
+    async submitReport(){
+      if(this.reportBusy) return;
+      const desc=(this.bugText||'').trim();
+      if(!desc){ this.showError('Please describe the problem before submitting.'); return; }
+      this.reportBusy=true; this.reportMsg=null;
+      try{
+        const r=await this.adapter.submitReport({ description:desc, game_id:this.gid||null, client_info:this._reportInfo() });
+        if(r && r.error){ this.showError(r.error); }
+        else { this.bugText=''; this.reportMsg='Thanks — your report was submitted for review.'; }
+      }catch(e){ this.showError('Could not submit the report. Please try again.'); }
+      this.reportBusy=false;
+    },
+    async downloadReport(){
+      let serverLog=[]; if(this.gid){ try{ const d=await this.adapter.getLog(this.gid); if(d&&d.log) serverLog=d.log; }catch(e){} }
+      const report={ report_type:'octachess_bug_report', downloaded:new Date().toISOString(),
+        description:this.bugText||'(no description provided)', game_id:this.gid||null,
+        move_log:serverLog, client_info:this._reportInfo() };
+      const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download=`octachess-report-${this.gid||'offline'}.json`; a.click(); URL.revokeObjectURL(a.href);
+      this.reportMsg='Report downloaded.';
+    },
     _syncMeta(r){ if(r&&r.meta) this.gameMeta=r.meta; if(r&&r.v!==undefined) this.gameV=r.v; this.refresh(); },
     _enterGame(gid, humanSide, isPvp, meta, v){
       this._pollSeq++; this.online=true; this.gid=gid; this.isPvp=!!isPvp;
@@ -423,14 +471,21 @@ createApp({
     },
     async opponentLoop(){
       if(this.isPvp){ this.pvpPoll(); return; }
-      const gid=this.gid, seq=this._pollSeq; this.thinking=true;
+      if(this._oppRunning) return;            // only ONE AI loop at a time (never multiply AI requests)
+      this._oppRunning=true;
+      const gid=this.gid, seq=this._pollSeq; this.thinking=true; let backoff=0;
       while(this.gid===gid && this._pollSeq===seq && !this.over && this.turn!==this.humanSide){
-        const r=await this._call(()=>this.adapter.aiMove(gid));
-        if(this.gid!==gid || this._pollSeq!==seq){ this.thinking=false; return; }
-        if(!r||r.error||!r.move) break;
-        this.applyServerAction(r.move); this._syncMeta(r);
+        let r=null; try{ r=await this.adapter.aiMove(gid); }catch(e){ r={error:'network error'}; }
+        if(this.gid!==gid || this._pollSeq!==seq) break;
+        if(r && r.error){                     // server throttling / transient: wait & RETRY (never stick)
+          this.showError(r.error);
+          backoff=Math.min(backoff?backoff*2:2500, 15000);
+          await new Promise(res=>setTimeout(res, backoff)); continue;
+        }
+        if(!r || !r.move) break;
+        backoff=0; this.applyServerAction(r.move); this._syncMeta(r);
       }
-      this.thinking=false; if(this.over) this.refreshLobby();
+      this._oppRunning=false; this.thinking=false; if(this.over) this.refreshLobby();
     },
     async pvpPoll(){
       const gid=this.gid, seq=++this._pollSeq;
@@ -542,7 +597,9 @@ createApp({
       const me=await this.adapter.ensureAuth(); this.acct=me&&me.player?me.player:null;
       await this.refreshLobby();
       const resume=(this.myGames||[]).find(g=>g.your_turn)||this.myGames[0];
-      if(resume) this.openGame(resume.id); else this.newGame();
+      // With a server present, default to an ONLINE game so play is archived (like FACET). Offline is
+      // the explicit "Practice offline" button. Resume an existing game if there is one (no DB spam).
+      if(resume) this.openGame(resume.id); else this.playAiOnline();
       this._lobbyTimer=setInterval(()=>{ if(!this.gid && this.isServer) this.refreshLobby(); }, 8000);
     } else {
       this.newGame();
