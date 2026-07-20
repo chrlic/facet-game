@@ -306,6 +306,8 @@
         <div class="row" style="margin-top:6px">
           <button class="primary" @click="newGame">New AI game</button>
           <button class="dlbtn" @click="postSeek">Offer to players</button>
+          <button class="dlbtn" @click="practiceOffline"
+                  title="Play locally against the same AI — this game won't be saved to your online archive">Practice offline</button>
           <label v-if="me && me.player && !me.player.is_guest"
                  style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
             <input type="checkbox" v-model="seekRated"> Rated
@@ -332,6 +334,7 @@
             <option value="random">Random</option>
           </select>
           <button class="primary" @click="newGame">New AI game</button>
+          <button class="dlbtn" v-if="forcedLocal" @click="goOnline" title="Reconnect to the server">Back online</button>
           <button class="dlbtn" @click="showRules=!showRules">?</button>
         </div>
         <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;margin-top:6px">
@@ -408,7 +411,7 @@ const { createApp } = Vue;
 
 createApp({
   data(){return{
-    adapter:null, adapterMode:"detecting...",
+    adapter:null, adapterMode:"detecting...", forcedLocal:false,
     me:null, id:null, state:null, gameMeta:null, gameV:-1, _pollSeq:0,
     humanSide:0, sideChoice:"0", difficulty:"normal",
     selectedTool:null, rerouteFrom:null, pendingServer:null,
@@ -724,6 +727,26 @@ createApp({
       this.selectedTool=null; this.rerouteFrom=null; this.pendingServer=null;
       this.gameMeta=null; this.gameV=-1; this._pollSeq++;
       this.errorMsg=null; this.noticeMsg=null; this.aiExplainHistory=[];
+    },
+    // explicit offline: force the local engine (same rules + AI as online; game NOT archived). "Back
+    // online" reconnects. Consistent with the other games' "Practice offline" toggle.
+    async practiceOffline(){
+      this.forcedLocal=true; this.adapter=new BackboneLocalAdapter(); this.adapterMode='local'; this.me=null;
+      this.newGame();
+    },
+    async goOnline(){
+      let server=null;
+      try{ const r=await fetch("/api/v1/boards",{signal:AbortSignal.timeout(2000)}); if(r.ok) server=new ServerAdapter(); }catch(e){}
+      this.adapter=server||new BackboneLocalAdapter(); this.adapterMode=this.adapter.mode; this.forcedLocal=false;
+      if(this.isOnline){
+        this.me=await this.adapter.ensureAuth();
+        if(this.me&&this.me.error){ this.showError(this.me.error); this.me=null; }
+        if(!this._lobbyTimer) this._lobbyTimer=setInterval(()=>this.refreshLobby(),5000);
+        await this.refreshLobby();
+        const resume=this.bbGames.find(g=>g.your_turn)||this.bbGames[0];
+        if(resume){ this.openGame(resume.id); return; }
+      }
+      this.newGame();
     },
     async newGame(){
       this.busy=true; this._resetUi();
