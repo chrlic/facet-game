@@ -133,6 +133,23 @@
     return { black: black, white: white, terrB: terrB, terrW: terrW, capB: state.caps[1], capW: state.caps[2],
              komi: KOMI, margin: black - white, winner: black > white ? "black" : (white > black ? "white" : "draw") };
   }
+  // Live estimate: like score() but only counts an empty region as territory if it is a genuinely
+  // enclosed pocket (size <= cap). Early on, the whole open board is ONE region touching one colour,
+  // which score() wrongly credits as huge territory — this only counts what's undeniably surrounded.
+  function scoreLive(state) {
+    var col = state.color, seen = new Int8Array(NP), terrB = 0, terrW = 0, i;
+    var cap = Math.max(8, Math.round(NP * 0.16));
+    for (i = 0; i < NP; i++) {
+      if (col[i] !== 0 || seen[i]) continue;
+      var stack = [i], region = [], border = 0; seen[i] = 1;
+      while (stack.length) { var v = stack.pop(); region.push(v); var ns = ADJ[v];
+        for (var k = 0; k < ns.length; k++) { var u = ns[k]; if (col[u] === 0) { if (!seen[u]) { seen[u] = 1; stack.push(u); } } else border |= col[u]; } }
+      if (region.length <= cap) { if (border === 1) terrB += region.length; else if (border === 2) terrW += region.length; }
+    }
+    var black = terrB + state.caps[1], white = terrW + state.caps[2] + KOMI;
+    return { black: black, white: white, terrB: terrB, terrW: terrW, capB: state.caps[1], capW: state.caps[2],
+             komi: KOMI, margin: black - white, winner: black > white ? "black" : (white > black ? "white" : "draw") };
+  }
   function status(state) { if (!ended(state)) return { over: false }; var sc = score(state); return { over: true, result: sc.winner, score: sc }; }
 
   // ---- helpers for the playout policy ----
@@ -182,7 +199,9 @@
   // A single "heavy" playout: near the opponent's last stone it prefers capturing an atari'd
   // group or saving its own, then plays locally, then globally at random. Much stronger estimates
   // than uniform-random playouts. Returns the terminal state (both sides passed / board full).
-  function runPlayout(state) {
+  // `first` (optional Int8Array): records, per point, the colour that FIRST plays there during the
+  // playout — used by RAVE/AMAF to credit every move that appeared, not just the root move.
+  function runPlayout(state, first) {
     var st = { color: state.color.slice(), turn: state.turn, ko: state.ko, passes: state.passes, caps: { 1: state.caps[1], 2: state.caps[2] } };
     var last = state.last, passes = state.passes, moves = 0, maxM = 3 * NP, order = null;
     while (passes < 2 && moves < maxM) {
@@ -209,7 +228,8 @@
           r = goodMove(st, oi, me); if (r) { chosen = oi; cr = r; break; } }
       }
       if (chosen < 0) { st.passes = ++passes; st.ko = -1; }
-      else { commit(st, chosen, cr, me); passes = st.passes = 0; last = chosen; }
+      else { commit(st, chosen, cr, me); passes = st.passes = 0; last = chosen;
+             if (first && first[chosen] === 0) first[chosen] = me; }
       st.turn = 3 - me; moves++;
     }
     return st;
@@ -264,7 +284,8 @@
 
   // ---- Monte-Carlo AI (flat UCB1 at the root) ----
   var MC_MS = 850;
-  function aiMove(state, budgetMs) {
+  function aiMove(state, budgetMs, opts) {
+    var raveOn = !(opts && opts.rave === false);   // toggle for A/B testing RAVE vs flat MC
     var me = state.turn, deadline = Date.now() + (budgetMs || MC_MS);
     // openness: fraction of the board still empty (line-value matters most in the opening)
     var empties = 0; for (var e = 0; e < NP; e++) if (state.color[e] === 0) empties++;
@@ -284,21 +305,35 @@
     var K = Math.min(scored.length, Math.max(16, Math.round(NP * 0.28)));   // search only good moves
     var cands = scored.slice(0, K);
     // priors from the policy score; children precomputed
+    // Root MC with RAVE (Rapid Action Value Estimation / AMAF): besides each candidate's real
+    // MC stats, keep "all-moves-as-first" stats — every playout also updates every candidate whose
+    // point was later played by us. Each playout thus refines ~all candidates, not just one, so the
+    // ranking converges far faster on a small (browser) playout budget.
+    var PRIOR = 4, C2 = 1.2, RAVE_BIAS = 2.5e-3;
     var C = cands.length, wins = new Float64Array(C), plays = new Float64Array(C), real = 0;
+    var amWins = new Float64Array(C), amPlays = new Float64Array(C), first = new Int8Array(NP);
     for (var ci = 0; ci < C; ci++) {
       cands[ci].child = play(state, cands[ci].id);
       var h = 0.5 + cands[ci].ps; if (h > 0.9) h = 0.9; else if (h < 0.15) h = 0.15;
-      plays[ci] = 4; wins[ci] = h * 4;                       // 4 virtual playouts of win-rate h
+      plays[ci] = PRIOR; wins[ci] = h * PRIOR; amPlays[ci] = PRIOR; amWins[ci] = h * PRIOR;
     }
-    var total = C * 4;
+    var total = C * PRIOR;
     while (Date.now() < deadline) {
       var pick = 0, bestU = -1e18;
       for (var k = 0; k < C; k++) {
-        var u = wins[k] / plays[k] + 1.25 * Math.sqrt(Math.log(total + 1) / plays[k]);
+        var n = plays[k], an = amPlays[k];
+        var beta = raveOn ? an / (an + n + an * n * RAVE_BIAS) : 0;   // AMAF early, real stats late
+        var val = (1 - beta) * (wins[k] / n) + beta * (amWins[k] / an);
+        var u = val + C2 * Math.sqrt(Math.log(total + 1) / n);
         if (u > bestU) { bestU = u; pick = k; }
       }
-      var w = playout(cands[pick].child);
-      plays[pick]++; total++; real++; if (w === me) wins[pick] += 1; else if (w === 0) wins[pick] += 0.5;
+      first.fill(0);
+      var sc = score(runPlayout(cands[pick].child, first));
+      var w = sc.winner === "draw" ? 0 : (sc.winner === "black" ? 1 : 2);
+      first[cands[pick].id] = me;                            // the root move counts for AMAF too
+      var res = (w === me) ? 1 : (w === 0 ? 0.5 : 0);
+      plays[pick]++; wins[pick] += res; total++; real++;
+      for (var j = 0; j < C; j++) if (first[cands[j].id] === me) { amPlays[j]++; amWins[j] += res; }
       if (real > 40000) break;
     }
     var best = 0, bestN = -1;                                 // most-simulated move (robust choice)
@@ -312,7 +347,7 @@
     board: function () { return { type: CUR.type, points: PTS, adj: ADJ, size: NP, hull: CUR.hull, edgePx: CUR.edgePx, bd: BD }; },
     get points() { return PTS; }, get adj() { return ADJ; }, get size() { return NP; },
     initial: initial, clone: clone, isLegal: isLegal, legalMoves: legalMoves,
-    play: play, pass: pass, ended: ended, score: score, scoreFinal: scoreFinal, status: status, group: group, aiMove: aiMove
+    play: play, pass: pass, ended: ended, score: score, scoreLive: scoreLive, scoreFinal: scoreFinal, status: status, group: group, aiMove: aiMove
   };
   if (typeof module !== "undefined" && module.exports) module.exports = HEXAGO;
   global.HEXAGO = HEXAGO;

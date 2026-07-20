@@ -55,6 +55,8 @@
   details summary{cursor:pointer;color:var(--ink);font-weight:600;margin-bottom:6px}
   details b{color:var(--ink)}
   .think{font-size:13px;color:var(--hl)}
+  .pulse{display:inline-block;animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.25;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
   .hit{cursor:pointer}
 </style>
 </head>
@@ -109,7 +111,7 @@
           <span v-if="over" :class="resultClass">{{statusText}}</span>
           <span v-else>{{statusText}}</span>
         </div>
-        <div v-if="thinking" class="think" style="margin-top:8px">AI is thinking…</div>
+        <div v-if="thinking" class="think" style="margin-top:8px"><span class="pulse">◉</span> AI is thinking…</div>
         <div v-else-if="lastPass" class="think" style="margin-top:8px;color:var(--muted)">{{lastPass}} passed — pass again to end &amp; score.</div>
       </div>
 
@@ -122,7 +124,7 @@
         <div class="brk">
           Black — {{sc.terrB}} territory + {{sc.capB}} prisoners<br>
           White — {{sc.terrW}} territory + {{sc.capW}} prisoners + {{komi}} komi<br>
-          <span style="opacity:.7">{{over?'Final score.':'Live estimate (territory scoring).'}}</span>
+          <span style="opacity:.7">{{over?'Final score.':'Live — only enclosed territory counts (final territory scored at game end).'}}</span>
         </div>
       </div>
 
@@ -200,8 +202,11 @@ const GO = window.HEXAGO;
 
 createApp({
   data(){
+    // initialise the board/state synchronously so the very first render (before mounted()) never
+    // dereferences a null board — otherwise the render computeds throw "Cannot read ... of null".
+    GO.setBoard('tri','m');
     return {
-      state: null, history: [], board: null,
+      state: GO.initial(), history: [], board: GO.board(),
       playerColor: 1, colorChoice:'b', boardChoice:'tri', sizeChoice:'m',
       thinking:false, over:false, statusInfo:{over:false}, scoreView:null,
       komi: GO.KOMI,
@@ -211,6 +216,7 @@ createApp({
       seeks:[], myGames:[], seekRated:false,
       authForm:null, authName:'', authPass:'', authBusy:false, recoveryCode:null,
       lbOpen:false, lbRows:[], errorMsg:null, _errT:null,
+      _worker:null, _workerBad:false, _aiReq:0, _aiPending:null, _aiTimer:null, _aiWatch:null,   // off-thread AI (Web Worker)
     };
   },
   computed: {
@@ -227,7 +233,7 @@ createApp({
     stones(){ const c=this.state.color, pts=this.board.points, out=[];
       for(let i=0;i<c.length;i++) if(c[i]) out.push({id:i, x:pts[i].x, y:pts[i].y, c:c[i]}); return out; },
     lastPt(){ const l=this.state.last; if(l<0) return null; const p=this.board.points[l]; return {x:p.x, y:p.y, c:3-this.state.turn}; },
-    sc(){ const s=(this.over && this.scoreView) ? this.scoreView : GO.score(this.state);
+    sc(){ const s=(this.over && this.scoreView) ? this.scoreView : GO.scoreLive(this.state);
       return { black:(s.black%1?s.black.toFixed(1):s.black), white:(s.white%1?s.white.toFixed(1):s.white),
                terrB:s.terrB, terrW:s.terrW, capB:s.capB, capW:s.capW }; },
     territory(){ if(!this.over || !this.scoreView) return [];
@@ -291,11 +297,45 @@ createApp({
     },
     aiTurn(){
       this.thinking=true;
-      setTimeout(()=>{
-        const mv = GO.aiMove(this.state, 750);
-        this._applyAction(mv.pass?{pass:true}:{id:mv.id});
+      const seq=this._pollSeq;
+      let settled=false;
+      // apply exactly one AI move and clear the indicator, whatever produced it (worker / fallback / watchdog)
+      const apply=(mv)=>{
+        if(settled) return; settled=true;
+        clearTimeout(this._aiWatch);
+        if(this._pollSeq!==seq || this.online || this.over){ this.thinking=false; return; }  // stale/switched
+        if(mv && (mv.pass || mv.id!=null)) this._applyAction(mv.pass?{pass:true}:{id:mv.id});
+        else this._applyAction({id:GO.aiMove(this.state,600).id});   // guard against a malformed reply
         this.thinking=false;
-      }, 30);
+      };
+      // hard watchdog: independent of _workerMove — if nothing settles, compute the move synchronously so
+      // the "thinking" indicator can never hang indefinitely (broken worker, silent promise, file://, …).
+      this._aiWatch=setTimeout(()=>{ if(!settled) apply(GO.aiMove(this.state,600)); }, 900+2600);
+      this._workerMove({type:this.boardChoice, size:this.sizeChoice}, this.state, 900)
+        .then(apply)
+        .catch(()=>apply(GO.aiMove(this.state,600)));
+    },
+    // run the (RAVE) MC search in a Web Worker so the UI stays responsive. ALWAYS resolves — falls
+    // back to the synchronous engine if there's no Worker, the worker errors (e.g. file://, blocked
+    // import), or it doesn't answer in time. So the AI can never hang on a broken worker.
+    _workerMove(board, state, budgetMs){
+      const payload={color:state.color, turn:state.turn, ko:state.ko, passes:state.passes, caps:state.caps, moveNo:state.moveNo, last:state.last};
+      return new Promise(resolve=>{
+        let done=false;
+        const finish=(mv)=>{ if(done) return; done=true; clearTimeout(this._aiTimer); this._aiPending=null; resolve(mv); };
+        const sync=()=>finish(GO.aiMove(state,budgetMs));
+        if(typeof Worker==='undefined' || this._workerBad){ setTimeout(sync,10); return; }
+        if(!this._worker){
+          try{ this._worker=new Worker('hexago-ai-worker.js'); }
+          catch(e){ this._workerBad=true; setTimeout(sync,10); return; }
+          this._worker.onmessage=ev=>{ if(this._aiPending) this._aiPending(ev.data); };
+          this._worker.onerror=()=>{ this._workerBad=true; try{this._worker.terminate();}catch(e){} this._worker=null; if(this._aiPending) this._aiPending({error:'worker'}); };
+        }
+        const reqId=++this._aiReq;
+        this._aiPending=(d)=>{ if(!d || (d.reqId!==undefined && d.reqId!==reqId)) return; finish(d.error?GO.aiMove(state,budgetMs):d.move); };
+        this._aiTimer=setTimeout(sync, budgetMs+2500);   // safety net if the worker goes silent
+        this._worker.postMessage({reqId, board, state:payload, budgetMs});
+      });
     },
     refresh(){ this.statusInfo=GO.status(this.state);
       const passEnd=this.statusInfo.over;
