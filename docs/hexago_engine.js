@@ -207,12 +207,16 @@
       else if (state.color[w] === 3 - me) { enemy++; var eg = group(r.color, w); if (eg.stones.length && eg.libs === 1) atari++; } }
     h += atari * 0.4;
     // settled-territory sense: a purely non-tactical stone (no capture, no atari) inside a region
-    // sealed by ONE colour is almost always wrong — a dead stone in the enemy's area, or a wasted
-    // fill of your own eye space. Prune the hopeless ones; heavily discourage the rest.
+    // sealed by ONE colour is essentially always wrong in TERRITORY scoring, so PRUNE it (the AI
+    // should play a real move or PASS, not throw a point away). A region is only "sealed" when fully
+    // enclosed by one colour; the moment the opponent invades it, its border includes both colours so
+    // it reads as neutral (owner 0) and defensive replies there are allowed again.
     if (enc && r.captured === 0 && atari === 0) {
       var ro = enc.owner[id], rs = enc.size[id];
-      if (ro === 3 - me) { if (rs <= 6) return -1e9; h -= 1.2; }   // playing INTO enemy territory
-      else if (ro === me) { h -= rs <= 6 ? 0.6 : 0.15; }           // filling YOUR OWN territory/eyes
+      if (ro === me) return -1e9;                                  // never fill your OWN territory (pass)
+      if (ro === 3 - me && rs <= 12) return -1e9;                  // dead stone in a sealed enemy area
+      if (ro === 3 - me) h -= 0.5;                                 // large enemy area: discourage (but the
+      // opening reads the whole board as one colour's, so keep this mild — don't distort early play)
     }
     h += LINEVAL[Math.min(BD[id], 5)] * openness;          // opening: love the 3rd/4th line, avoid 1st
     h += 0.06 * Math.min(friend, 2) + 0.055 * Math.min(enemy, 2);  // stay where the play is

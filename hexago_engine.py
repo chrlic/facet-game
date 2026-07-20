@@ -431,7 +431,28 @@ def score_area(state, playouts=80):  # noqa: C901
 _LINEVAL = [-0.95, -0.28, 0.42, 0.34, 0.16, 0.10]
 
 
-def _policy_score(state, idx, me, openness, r):
+def _enclosure(color):
+    """Per empty point: which single colour (if any) seals its region, and the region size."""
+    owner = [0] * NP; size = [0] * NP; seen = [False] * NP
+    for i in range(NP):
+        if color[i] != 0 or seen[i]:
+            continue
+        stack = [i]; region = []; border = 0; seen[i] = True
+        while stack:
+            v = stack.pop(); region.append(v)
+            for u in ADJ[v]:
+                if color[u] == 0:
+                    if not seen[u]:
+                        seen[u] = True; stack.append(u)
+                else:
+                    border |= color[u]
+        o = 1 if border == 1 else 2 if border == 2 else 0
+        for p in region:
+            owner[p] = o; size[p] = len(region)
+    return owner, size
+
+
+def _policy_score(state, idx, me, openness, r, enc=None):
     if r is None:
         return -1e9
     if _is_eye(state["color"], idx, me):
@@ -450,6 +471,16 @@ def _policy_score(state, idx, me, openness, r):
             if est and elib == 1:
                 atari += 1
     h += atari * 0.4
+    # settled-territory sense: a non-tactical stone into a region sealed by ONE colour is wrong in
+    # territory scoring — a dead stone in the enemy's area, or a wasted fill of your own. Prune it.
+    if enc is not None and r["captured"] == 0 and atari == 0:
+        ro = enc[0][idx]; rs = enc[1][idx]
+        if ro == me:
+            return -1e9                       # never fill your OWN territory (pass instead)
+        if ro == 3 - me and rs <= 12:
+            return -1e9                       # dead stone in a sealed enemy area
+        if ro == 3 - me:
+            h -= 0.5                           # large enemy area: discourage (keep opening undistorted)
     h += _LINEVAL[min(BD[idx], 5)] * openness
     h += 0.06 * min(friend, 2) + 0.055 * min(enemy, 2)
     if friend >= 3:
@@ -462,6 +493,7 @@ def ai_move(state, difficulty="normal"):
     me = state["turn"]
     empties = sum(1 for v in state["color"] if v == 0)
     openness = empties / NP if NP else 0
+    enc = _enclosure(state["color"])          # territory map so the policy won't play into settled areas
     scored = []
     for idx in range(NP):
         if state["color"][idx] != 0:
@@ -469,7 +501,7 @@ def ai_move(state, difficulty="normal"):
         r = try_place(state, idx)
         if r is None:
             continue
-        ps = _policy_score(state, idx, me, openness, r)
+        ps = _policy_score(state, idx, me, openness, r, enc)
         if ps > -1e8:
             scored.append((ps, idx))
     sc0 = score(state)
