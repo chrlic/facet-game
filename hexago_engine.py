@@ -514,8 +514,10 @@ def _net_move(state, difficulty):
     enc = _enclosure(state["color"])
     probs, _pass_p, _val = N.policy_probs(state, ADJ, BD, NP)
     cands = []
-    for idx, p in probs.items():                 # drop settled-territory moves (like the greedy policy)
-        ro = enc[0][idx]
+    for idx, p in probs.items():
+        if not is_legal(state, idx):             # policy_probs ranks empty points; skip illegal (suicide/ko)
+            continue
+        ro = enc[0][idx]                          # drop settled-territory moves (like the greedy policy)
         rs = enc[1][idx]
         if ro == me or (ro == 3 - me and rs <= 12):
             continue
