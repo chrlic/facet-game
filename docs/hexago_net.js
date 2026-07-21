@@ -140,53 +140,75 @@
   }
   // build a node: run the net once, keep top-K legal moves as edges (priors P), store win-prob q
   function makeNode(GO, state, board, K) {
-    var out = forward(state, board), NP = board.size, col = state.color, v;
+    var out = forward(state, board), NP = board.size, col = state.color, me = state.turn, v;
     var q = (out.value + 1) / 2;                              // win prob for side-to-move, in [0,1]
+    // territory sense: don't fill your own settled area or invade a small sealed enemy pocket (matches
+    // the MC engine's policy) — keeps play sensible AND lets games END promptly instead of dragging on.
+    var enc = GO.enclosure ? GO.enclosure(col) : null;
     // legal empties, softmax the policy logits over them, keep the top-K by prior
     var ids = [], mx = -1e18;
-    for (v = 0; v < NP; v++) if (col[v] === 0 && GO.isLegal(state, v)) { ids.push(v); if (out.policy[v] > mx) mx = out.policy[v]; }
+    for (v = 0; v < NP; v++) {
+      if (col[v] !== 0 || !GO.isLegal(state, v)) continue;
+      if (enc) { var ro = enc.owner[v], rs = enc.size[v]; if (ro === me || (ro === 3 - me && rs <= 12)) continue; }
+      ids.push(v); if (out.policy[v] > mx) mx = out.policy[v];
+    }
     var arr = [], Z = 0, i;
     for (i = 0; i < ids.length; i++) { var e = Math.exp(out.policy[ids[i]] - mx); arr.push({ id: ids[i], p: e }); Z += e; }
     for (i = 0; i < arr.length; i++) arr[i].p /= Z;
     arr.sort(function (a, b) { return b.p - a.p; });
     if (arr.length > K) arr = arr.slice(0, K);
     var edges = [];
-    for (i = 0; i < arr.length; i++) edges.push({ id: arr[i].id, P: arr[i].p, N: 0, W: 0, child: null });
-    return { state: state, edges: edges, q: q, N: 0 };
+    for (i = 0; i < arr.length; i++) edges.push({ id: arr[i].id, P: arr[i].p, N: 0, W: 0, aN: 0, aW: 0, child: null });
+    return { state: state, edges: edges, q: q, mover: me, N: 0 };
   }
-  function leafQ(GO, node, useRollout) {   // win prob for node's side-to-move
-    if (!useRollout) return node.q;                            // net value head
-    var w = GO.rollout(node.state);                            // real heavy playout
-    return w === "draw" ? 0.5 : ((w === "black" ? 1 : 2) === node.state.turn ? 1 : 0);
-  }
-  function simulate(GO, node, board, C, K, roll) {
-    node.N++;
-    if (node.edges.length === 0) return leafQ(GO, node, roll);  // no move here
-    var sqrtN = Math.sqrt(node.N), best = null, bestU = -1e18, i;
-    for (i = 0; i < node.edges.length; i++) {
-      var ed = node.edges[i], Q = ed.N > 0 ? ed.W / ed.N : node.q;   // FPU = parent net value
-      var u = Q + C * ed.P * sqrtN / (1 + ed.N);
-      if (u > bestU) { bestU = u; best = ed; }
+  var RAVE_BIAS = 2.5e-3;
+  // ONE tree-RAVE simulation: descend by PUCT+AMAF, expand a leaf, evaluate by a heavy rollout, then
+  // backprop real stats AND all-moves-as-first (RAVE) stats up the path. Net priors + RAVE + rollout
+  // value together make the search as sample-efficient as MC-RAVE, plus tree depth + learned priors.
+  function simulateRave(GO, root, board, Cpuct, K) {
+    var path = [], node = root, i;
+    while (true) {
+      node.N++;
+      if (node.edges.length === 0) break;                      // terminal-ish leaf
+      var sqrtN = Math.sqrt(node.N), bi = 0, bestU = -1e18;
+      for (i = 0; i < node.edges.length; i++) {
+        var ed = node.edges[i];
+        var qn = ed.N > 0 ? ed.W / ed.N : node.q;              // FPU = parent net value
+        var beta = ed.aN > 0 ? ed.aN / (ed.aN + ed.N + ed.aN * ed.N * RAVE_BIAS) : 0;
+        var qr = (1 - beta) * qn + beta * (ed.aN > 0 ? ed.aW / ed.aN : qn);
+        var u = qr + Cpuct * ed.P * sqrtN / (1 + ed.N);
+        if (u > bestU) { bestU = u; bi = i; }
+      }
+      path.push({ node: node, ei: bi });
+      var e = node.edges[bi];
+      if (e.child === null) { e.child = makeNode(GO, GO.play(node.state, e.id), board, K); node = e.child; node.N++; break; }
+      node = e.child;
     }
-    var v;
-    if (best.child === null) { best.child = makeNode(GO, GO.play(node.state, best.id), board, K); v = 1 - leafQ(GO, best.child, roll); }
-    else v = 1 - simulate(GO, best.child, board, C, K, roll);  // child is opponent's node -> flip
-    best.N++; best.W += v;
-    return v;
+    var rr = GO.rolloutFirst(node.state), first = rr.first;
+    var w = rr.winner === "draw" ? 0 : (rr.winner === "black" ? 1 : 2);
+    for (i = 0; i < path.length; i++) { var pn = path[i].node, mv = pn.edges[path[i].ei].id; if (first[mv] === 0) first[mv] = pn.mover; }
+    for (i = 0; i < path.length; i++) {
+      var n2 = path[i].node, C = n2.mover, ce = n2.edges[path[i].ei];
+      var res = w === 0 ? 0.5 : (w === C ? 1 : 0);
+      ce.N++; ce.W += res;
+      for (var j = 0; j < n2.edges.length; j++) { var e2 = n2.edges[j]; if (first[e2.id] === C) { e2.aN++; e2.aW += res; } }
+    }
   }
   function netPuct(state, budgetMs, opts) {
     var GO = engine(), board = GO.board(), me = state.turn;
     var deadline = Date.now() + (budgetMs || 800), C = (opts && opts.c) || 1.4, K = (opts && opts.k) || 24;
-    var roll = !!(opts && opts.rollout);                       // net priors + real rollout leaf value
     var root = makeNode(GO, state, board, K);
     if (root.edges.length === 0) return { pass: true };
     var sc0 = GO.score(state), myMargin = me === 1 ? sc0.margin : -sc0.margin;
     if (state.passes >= 1 && myMargin > 0) return { pass: true };   // both-pass endgame when ahead
-    var sims = 0;
-    while (Date.now() < deadline && sims < 100000) { simulate(GO, root, board, C, K, roll); sims++; }
+    // root exploration noise for self-play (mix uniform into the priors) so games diversify
+    if (opts && opts.noise) { var eps = opts.noise, n = root.edges.length; for (var e3 = 0; e3 < n; e3++) root.edges[e3].P = (1 - eps) * root.edges[e3].P + eps / n; }
+    var fixed = opts && opts.sims, sims = 0;
+    while ((fixed ? sims < fixed : Date.now() < deadline) && sims < 100000) { simulateRave(GO, root, board, C, K); sims++; }
     var best = root.edges[0];
     for (var i = 1; i < root.edges.length; i++) if (root.edges[i].N > best.N) best = root.edges[i];
-    return { pass: false, id: best.id, sims: sims, winrate: best.N ? best.W / best.N : root.q, value: root.q };
+    var dist = []; for (i = 0; i < root.edges.length; i++) dist.push([root.edges[i].id, root.edges[i].N]);
+    return { pass: false, id: best.id, sims: sims, winrate: best.N ? best.W / best.N : root.q, value: root.q, dist: dist };
   }
 
   return { setWeights: setWeights, loaded: loaded, forward: forward, policyProbs: policyProbs,

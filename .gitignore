@@ -16,3 +16,4 @@ logs/**
 # HEXA-GO net training artifacts (regenerable)
 net/*.jsonl
 net/gen.log
+net/spb/

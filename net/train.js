@@ -187,9 +187,13 @@ function train() {
   const outFile = process.argv[4] || "docs/hexago-weights.json";
   const epochs = +(process.argv[5] || 8), H = +(process.argv[6] || 32), K = +(process.argv[7] || 3), Hv = 16;
   const lr = +(process.argv[8] || 0.05), cval = 1.0, batch = 32;
+  const warm = process.argv[9];    // optional warm-start weights (Phase-B RL iterations)
   const data = fs.readFileSync(dataFile, "utf8").trim().split("\n").map(JSON.parse);
-  console.log(`data ${data.length} positions | net H${H} K${K} | epochs ${epochs} lr ${lr}`);
-  const W = NET.randomWeights(F, H, K, Hv), V = zerosLike(W), mu = 0.9;
+  let W;
+  if (warm && fs.existsSync(warm)) { W = JSON.parse(fs.readFileSync(warm, "utf8")); console.log(`warm-start from ${warm} (H${W.H} K${W.K})`); }
+  else W = NET.randomWeights(F, H, K, Hv);
+  console.log(`data ${data.length} positions | net H${W.H} K${W.K} | epochs ${epochs} lr ${lr}`);
+  const V = zerosLike(W), mu = 0.9;
   for (let ep = 0; ep < epochs; ep++) {
     for (let i = data.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = data[i]; data[i] = data[j]; data[j] = t; }
     const elr = lr * (1 - 0.5 * ep / epochs);   // gentle lr decay
@@ -201,8 +205,8 @@ function train() {
     }
     console.log(`epoch ${ep + 1}/${epochs}  loss ${(L / cnt).toFixed(4)}  pol ${(PL / cnt).toFixed(4)}  val ${(VL / cnt).toFixed(4)}`);
   }
-  // serialize (plain arrays)
-  const outW = { F, H, K, Hv, inW: Array.from(W.inW), inB: Array.from(W.inB),
+  // serialize (plain arrays); use the net's OWN dims (warm-start may differ from argv)
+  const outW = { F: W.F, H: W.H, K: W.K, Hv: W.Hv, inW: Array.from(W.inW), inB: Array.from(W.inB),
     layers: W.layers.map(L => ({ selfW: Array.from(L.selfW), nbW: Array.from(L.nbW), b: Array.from(L.b) })),
     polW: Array.from(W.polW), polB: W.polB, passW: Array.from(W.passW), passB: W.passB,
     valW1: Array.from(W.valW1), valB1: Array.from(W.valB1), valW2: Array.from(W.valW2), valB2: W.valB2,

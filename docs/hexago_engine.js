@@ -491,7 +491,10 @@
     get points() { return PTS; }, get adj() { return ADJ; }, get size() { return NP; },
     initial: initial, clone: clone, isLegal: isLegal, legalMoves: legalMoves,
     play: play, pass: pass, ended: ended, score: score, scoreLive: scoreLive, scoreFinal: scoreFinal, scoreArea: scoreArea, status: status, group: group, aiMove: aiMove,
-    rollout: function (state) { return score(runPlayout(state)).winner; }   // one heavy playout -> winner (for net-PUCT leaf eval)
+    rollout: function (state) { return score(runPlayout(state)).winner; },  // one heavy playout -> winner (for net-PUCT leaf eval)
+    // rollout that also records, per point, the colour that FIRST played there (for tree-RAVE / AMAF)
+    rolloutFirst: function (state) { var first = new Int8Array(NP); var st = runPlayout(state, first); return { winner: score(st).winner, first: first }; },
+    enclosure: enclosure
   };
   if (typeof module !== "undefined" && module.exports) module.exports = HEXAGO;
   global.HEXAGO = HEXAGO;
