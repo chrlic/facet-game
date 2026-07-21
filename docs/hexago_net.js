@@ -199,6 +199,14 @@
     var deadline = Date.now() + (budgetMs || 800), C = (opts && opts.c) || 1.4, K = (opts && opts.k) || 24;
     var root = makeNode(GO, state, board, K);
     if (root.edges.length === 0) return { pass: true };
+    // life-and-death: drop root moves into SETTLED territory (a pass-alive group's area — yours is
+    // already alive, theirs is hopeless). If only such moves remain, the position is decided -> pass.
+    if (GO.settledMask) {
+      var settled = GO.settledMask(state.color), kept = [];
+      for (var ki = 0; ki < root.edges.length; ki++) if (!settled[root.edges[ki].id]) kept.push(root.edges[ki]);
+      if (kept.length === 0) return { pass: true };
+      root.edges = kept;
+    }
     var sc0 = GO.score(state), myMargin = me === 1 ? sc0.margin : -sc0.margin;
     if (state.passes >= 1 && myMargin > 0) return { pass: true };   // both-pass endgame when ahead
     // root exploration noise for self-play (mix uniform into the priors) so games diversify

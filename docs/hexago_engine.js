@@ -332,6 +332,19 @@
     for (i = 0; i < survW.length; i++) { reg = survW[i]; for (j = 0; j < reg.length; j++) if (col[reg[j]] === 1 && pa[reg[j]] !== 1) dead[reg[j]] = 1; }
     return dead;
   }
+  // which points sit in SETTLED territory — a region sealed by a pass-alive (two-eyed, unconditionally
+  // alive) group of EITHER colour. Playing there is unnecessary: your own live area (filling wastes a
+  // point; a dead enemy stone inside is already a prisoner) or the opponent's live area (hopeless to
+  // invade). Unsettled fights (an invader that could still make two eyes) are NOT sealed, so moves
+  // that kill/prevent them stay available. Used to stop end-game busywork and to pass when settled.
+  function settledMask(col) {
+    var pa = new Int8Array(NP), survB = [], survW = [], mask = new Int8Array(NP), i, j, reg;
+    passAlive(col, 1, pa, survB);
+    passAlive(col, 2, pa, survW);
+    for (i = 0; i < survB.length; i++) { reg = survB[i]; for (j = 0; j < reg.length; j++) mask[reg[j]] = 1; }
+    for (i = 0; i < survW.length; i++) { reg = survW[i]; for (j = 0; j < reg.length; j++) mask[reg[j]] = 1; }
+    return mask;
+  }
   function passAlive(col, C, pa, surv) {
     var i, k, u, v, ns;
     // C-chains
@@ -377,7 +390,9 @@
     }
     // record pass-alive C stones, and the regions they seal (for the caller to resolve dead enemies)
     for (i = 0; i < NP; i++) if (col[i] === C && !chainDead[chainId[i]]) pa[i] = C;
-    for (var rr = 0; rr < nr; rr++) if (!regionGone[rr]) surv.push(regions[rr].points);
+    // a region is "sealed by C" only if it actually borders >=1 (surviving/pass-alive) C chain — a
+    // region bordering NO chain (e.g. the whole empty board) is enclosed by nothing, not territory.
+    for (var rr = 0; rr < nr; rr++) if (!regionGone[rr] && regions[rr].border.length > 0) surv.push(regions[rr].points);
   }
 
   // FINAL area scoring for a SETTLED (two-pass) position. Dead stones are found by Benson's algorithm
@@ -494,7 +509,7 @@
     rollout: function (state) { return score(runPlayout(state)).winner; },  // one heavy playout -> winner (for net-PUCT leaf eval)
     // rollout that also records, per point, the colour that FIRST played there (for tree-RAVE / AMAF)
     rolloutFirst: function (state) { var first = new Int8Array(NP); var st = runPlayout(state, first); return { winner: score(st).winner, first: first }; },
-    enclosure: enclosure
+    enclosure: enclosure, settledMask: settledMask
   };
   if (typeof module !== "undefined" && module.exports) module.exports = HEXAGO;
   global.HEXAGO = HEXAGO;

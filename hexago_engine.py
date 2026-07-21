@@ -345,7 +345,7 @@ def _pass_alive(col, C, pa, surv):  # noqa: C901
         if col[i] == C and not chain_dead[chain_id[i]]:
             pa[i] = C
     for ri in range(nr):
-        if not region_gone[ri]:
+        if not region_gone[ri] and len(regions[ri][1]) > 0:   # must border >=1 chain (not the empty board)
             surv.append(regions[ri][0])
 
 
@@ -365,6 +365,22 @@ def _benson_dead(col):
             if col[p] == 1 and pa[p] != 1:
                 dead[p] = 1
     return dead
+
+
+def _settled_mask(col):
+    """Points in SETTLED territory — a region sealed by a pass-alive (two-eyed) group of either colour.
+    Playing there is unnecessary (your live area, or the opponent's). Unsettled fights stay open."""
+    pa = [0] * NP; surv_b = []; surv_w = []
+    _pass_alive(col, 1, pa, surv_b)
+    _pass_alive(col, 2, pa, surv_w)
+    mask = [0] * NP
+    for reg in surv_b:
+        for p in reg:
+            mask[p] = 1
+    for reg in surv_w:
+        for p in reg:
+            mask[p] = 1
+    return mask
 
 
 def score_area(state, playouts=80):  # noqa: C901
@@ -512,12 +528,15 @@ def _net_move(state, difficulty):
     N = _NET
     me = state["turn"]
     enc = _enclosure(state["color"])
+    settled = _settled_mask(state["color"])       # pass-alive (two-eyed) territory — don't play there
     probs, _pass_p, _val = N.policy_probs(state, ADJ, BD, NP)
     cands = []
     for idx, p in probs.items():
         if not is_legal(state, idx):             # policy_probs ranks empty points; skip illegal (suicide/ko)
             continue
-        ro = enc[0][idx]                          # drop settled-territory moves (like the greedy policy)
+        if settled[idx]:                          # settled life-and-death: your live area or theirs
+            continue
+        ro = enc[0][idx]                          # also drop simple own/small-enemy sealed territory
         rs = enc[1][idx]
         if ro == me or (ro == 3 - me and rs <= 12):
             continue
