@@ -488,8 +488,60 @@ def _policy_score(state, idx, me, openness, r, enc=None):
     return h
 
 
+# ---- neural policy (the Phase-B self-play net) — one forward pass (~50ms), much stronger than the
+# hand greedy. net-PUCT (with search) is too slow in pure Python, so the server uses the policy head
+# with the same territory/pass logic as the greedy AI. Falls back to greedy if the weights are absent.
+_NET = None
+_NET_TRIED = False
+
+
+def _net():
+    global _NET, _NET_TRIED
+    if not _NET_TRIED:
+        _NET_TRIED = True
+        try:
+            import hexago_net as _N
+            if _N.load_weights():
+                _NET = _N
+        except Exception:
+            _NET = None
+    return _NET
+
+
+def _net_move(state, difficulty):
+    N = _NET
+    me = state["turn"]
+    enc = _enclosure(state["color"])
+    probs, _pass_p, _val = N.policy_probs(state, ADJ, BD, NP)
+    cands = []
+    for idx, p in probs.items():                 # drop settled-territory moves (like the greedy policy)
+        ro = enc[0][idx]
+        rs = enc[1][idx]
+        if ro == me or (ro == 3 - me and rs <= 12):
+            continue
+        cands.append((p, idx))
+    sc0 = score(state)
+    my_margin = sc0["margin"] if me == 1 else -sc0["margin"]
+    if not cands:
+        return {"pass": True}
+    if state["passes"] >= 1 and my_margin > 0:
+        return {"pass": True}
+    cands.sort(reverse=True)
+    ntop = 1 if difficulty == "hard" else 2 if difficulty == "normal" else 4
+    top = cands[:min(ntop, len(cands))]
+    r = random.random() * sum(p for p, _ in top)
+    acc = 0.0
+    for p, idx in top:
+        acc += p
+        if r <= acc:
+            return {"id": idx}
+    return {"id": top[0][1]}
+
+
 def ai_move(state, difficulty="normal"):
-    """Return an action dict {"id": n} or {"pass": True}. Greedy over the Go policy."""
+    """Return an action dict {"id": n} or {"pass": True}. Neural policy if available, else greedy."""
+    if _net() is not None:
+        return _net_move(state, difficulty)
     me = state["turn"]
     empties = sum(1 for v in state["color"] if v == 0)
     openness = empties / NP if NP else 0
