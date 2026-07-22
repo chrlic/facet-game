@@ -504,6 +504,50 @@
     return { pass: false, id: cands[best].id, sims: real, winrate: wins[best] / plays[best], dist: dist };
   }
 
+  // ---- board symmetries (graph automorphisms) --------------------------------------------------
+  // A "symmetry" of the board is a relabeling of the points that leaves the adjacency graph
+  // unchanged: rotate or mirror the whole board and every stone still has the same neighbours, so
+  // the position is strategically IDENTICAL. Because our GNN only ever looks at adjacency, feeding it
+  // a position and its mirror image are two views of the same truth -- which is exactly what makes
+  // symmetries free training data (see net/selfplay.js). We DISCOVER them geometrically rather than
+  // hard-coding each board: take every rigid motion about the board's centre (rotations by multiples
+  // of 30 deg, with and without a flip) and keep the ones that map the point set exactly onto itself.
+  // tri (a hexagon) has the full 12 (D6: 6 rotations x 2 mirrors); elong (a strip) has far fewer.
+  // Returns a list of permutations; perm[i] = index that point i lands on. The identity is always
+  // first. Result is cached per board on CUR.
+  function symmetries() {
+    if (CUR._syms) return CUR._syms;
+    var pts = PTS, n = NP, i, cx = 0, cy = 0;
+    for (i = 0; i < n; i++) { cx += pts[i].x; cy += pts[i].y; }
+    cx /= n; cy /= n;
+    var cen = pts.map(function (p) { return [p.x - cx, p.y - cy]; });   // points relative to centre
+    var tol = CUR.edgePx * 0.25, tol2 = tol * tol;                      // "same point" within 1/4 edge
+    function findAt(x, y) {                     // nearest original point to (x,y), or -1 if none close
+      var best = -1, bd = tol2;
+      for (var k = 0; k < n; k++) { var dx = cen[k][0] - x, dy = cen[k][1] - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = k; } }
+      return best;
+    }
+    var perms = [], seen = {};
+    for (var refl = 0; refl < 2; refl++) for (var t = 0; t < 12; t++) {   // 12 rotations x optional mirror
+      var ang = t * Math.PI / 6, ca = Math.cos(ang), sa = Math.sin(ang);
+      var perm = new Int16Array(n), used = new Uint8Array(n), ok = true;
+      for (i = 0; i < n; i++) {
+        var x = cen[i][0], y = cen[i][1];
+        if (refl) x = -x;                                    // mirror across the vertical axis, then...
+        var rx = ca * x - sa * y, ry = sa * x + ca * y;      // ...rotate by `ang`
+        var j = findAt(rx, ry);
+        if (j < 0 || used[j]) { ok = false; break; }         // not a self-map -> not a symmetry
+        used[j] = 1; perm[i] = j;
+      }
+      if (!ok) continue;
+      var key = perm.join(",");                              // dedup (e.g. 0 deg == 360 deg)
+      if (seen[key]) continue; seen[key] = 1;
+      perms.push(perm);
+    }
+    CUR._syms = perms;
+    return perms;
+  }
+
   var HEXAGO = {
     VIEW: VIEW, KOMI: KOMI,
     setBoard: setBoard,
@@ -514,7 +558,7 @@
     rollout: function (state) { return score(runPlayout(state)).winner; },  // one heavy playout -> winner (for net-PUCT leaf eval)
     // rollout that also records, per point, the colour that FIRST played there (for tree-RAVE / AMAF)
     rolloutFirst: function (state) { var first = new Int8Array(NP); var st = runPlayout(state, first); return { winner: score(st).winner, first: first }; },
-    enclosure: enclosure, settledMask: settledMask
+    enclosure: enclosure, settledMask: settledMask, symmetries: symmetries
   };
   if (typeof module !== "undefined" && module.exports) module.exports = HEXAGO;
   global.HEXAGO = HEXAGO;

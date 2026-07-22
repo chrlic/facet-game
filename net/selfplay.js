@@ -16,7 +16,30 @@ const boards = boardsArg.includes("/")
   ? boardsArg.split(",").map(b => b.split("/"))
   : [[boardsArg, process.argv[7] || "m"]];
 const tempMoves = +(process.argv[8] || 18);
+// argv[9] = max symmetries per position (data augmentation). Default: use ALL of the board's
+// symmetries (12 on tri, 1 on elong). Set a smaller number to cap training-set blow-up; identity is
+// always kept and the rest are sampled. See docs/hexago_engine.js symmetries() for the theory.
+const maxSyms = +(process.argv[9] || 99);
 NET.setWeights(JSON.parse(fs.readFileSync(wfile, "utf8")));
+
+// Rewrite one record under a symmetry permutation P (P[i] = point that i maps to). A rotated/mirrored
+// board is the SAME position to the net, so this is a correct, label-preserving copy: stones, the ko
+// point, and every move in the policy target pi all move to their image; turn and outcome are unchanged.
+function applySym(rec, P) {
+  const n = P.length, c = new Array(n);
+  for (let i = 0; i < n; i++) c[P[i]] = rec.c[i];               // stone at i now sits at P[i]
+  const ko = (typeof rec.ko === "number" && rec.ko >= 0 && rec.ko < n) ? P[rec.ko] : rec.ko;
+  const pi = rec.pi.map(([id, v]) => [P[id], v]);               // each visited move maps to its image
+  return { c: c.join(""), turn: rec.turn, ko: ko, pi: pi };
+}
+
+// Pick which symmetries to emit for this board: identity (index 0) always, plus up to maxSyms-1 more.
+function chooseSyms(syms) {
+  if (syms.length <= maxSyms) return syms;
+  const rest = syms.slice(1);
+  for (let i = rest.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = rest[i]; rest[i] = rest[j]; rest[j] = t; }
+  return [syms[0]].concat(rest.slice(0, maxSyms - 1));
+}
 
 function sample(dist, temp) {           // sample id ∝ visits^(1/temp)
   let tot = 0; const w = dist.map(([, n]) => { const x = Math.pow(n, 1 / temp); tot += x; return x; });
@@ -41,10 +64,18 @@ for (let g = 0; g < nGames; g++) {
     mv++;
   }
   const w = GO.scoreArea(s, 160).winner;
-  let buf = "";
-  for (const r of recs) { const z = w === "draw" ? 0 : (((w === "black" ? 1 : 2) === r.turn) ? 1 : -1); buf += JSON.stringify({ c: r.c, turn: r.turn, ko: r.ko, pi: r.pi, z, board: bkey }) + "\n"; }
+  const syms = chooseSyms(GO.symmetries());       // symmetry views of THIS board (set above via setBoard)
+  let buf = "", nWritten = 0;
+  for (const r of recs) {
+    const z = w === "draw" ? 0 : (((w === "black" ? 1 : 2) === r.turn) ? 1 : -1);
+    for (const P of syms) {                        // emit the position once per symmetry (free extra data)
+      const a = applySym(r, P);
+      buf += JSON.stringify({ c: a.c, turn: a.turn, ko: a.ko, pi: a.pi, z, board: bkey }) + "\n";
+      nWritten++;
+    }
+  }
   fs.appendFileSync(outFile, buf);
-  totalPos += recs.length;
-  process.stderr.write(`[${outFile}] game ${g + 1}/${nGames} ${bkey} moves ${mv} winner ${w} +${recs.length} (tot ${totalPos})\n`);
+  totalPos += nWritten;
+  process.stderr.write(`[${outFile}] game ${g + 1}/${nGames} ${bkey} moves ${mv} winner ${w} x${syms.length}sym +${nWritten} (tot ${totalPos})\n`);
 }
 process.stderr.write(`DONE ${outFile}: ${totalPos} positions\n`);
