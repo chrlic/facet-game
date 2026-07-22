@@ -397,14 +397,15 @@ def score_area(state, playouts=80):  # noqa: C901
                 bc[i] += 1
             elif o[i] == 2:
                 wc[i] += 1
-    # 1. remove dead stones (Benson OR Monte-Carlo)
-    b_dead = _benson_dead(state["color"])
+    # 1. remove dead stones — Monte-Carlo only (NOT Benson: it over-kills big living groups that just
+    #    haven't made two formal eyes yet when a game ends before it's fully settled). MC is reliable
+    #    here since the 1st-line-capture fix, and still catches enclosed dead groups.
     T = 0.6; col = list(state["color"]); pris_b = pris_w = 0
     for i in range(NP):
         cur = col[i]
         if cur == 0:
             continue
-        is_dead = b_dead[i] or (cur == 2 and bc[i] / playouts >= T) or (cur == 1 and wc[i] / playouts >= T)
+        is_dead = (cur == 2 and bc[i] / playouts >= T) or (cur == 1 and wc[i] / playouts >= T)
         if not is_dead:
             continue
         col[i] = 0

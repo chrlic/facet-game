@@ -404,18 +404,23 @@
   // into phantom territory — use scoreFinal for the live estimate).
   function scoreArea(state, playouts) {
     playouts = playouts || 240;
-    var bDead = bensonDead(state.color);                        // deterministic, reliable for enclosed groups
+    // Dead stones from MONTE-CARLO playouts only (a stone whose point the OPPONENT owns in >= T of the
+    // playouts). We do NOT use Benson here: Benson's "not-pass-alive stone in the enemy's region is
+    // dead" over-kills when a game ends BEFORE it's settled — a big living group that just hasn't made
+    // two *formal* eyes yet (lots of liberties/eyespace) gets wrongly killed. The 1st-line-capture fix
+    // in runPlayout made the MC reliable for enclosed dead groups, so MC alone is both correct here and
+    // still catches "N stones undeniably captured". (bensonDead/settledMask stay for net-PUCT pruning.)
     var base = clone(state); base.passes = 0; base.last = -1;
     var bc = new Float64Array(NP), wc = new Float64Array(NP), i, p;
     for (p = 0; p < playouts; p++) {
       var o = areaOwners(runPlayout(base).color);
       for (i = 0; i < NP; i++) { if (o[i] === 1) bc[i]++; else if (o[i] === 2) wc[i]++; }
     }
-    // 1. remove dead stones (Benson OR Monte-Carlo) -> cleaned board + prisoner counts
+    // 1. remove dead stones -> cleaned board + prisoner counts
     var T = 0.6, col = state.color.slice(), prisB = 0, prisW = 0;
     for (i = 0; i < NP; i++) {
       var cur = col[i]; if (cur === 0) continue;
-      var isDead = bDead[i] || (cur === 2 && bc[i] / playouts >= T) || (cur === 1 && wc[i] / playouts >= T);
+      var isDead = (cur === 2 && bc[i] / playouts >= T) || (cur === 1 && wc[i] / playouts >= T);
       if (!isDead) continue;
       col[i] = 0; if (cur === 2) prisB++; else prisW++;          // dead white -> black prisoner, and vice-versa
     }
