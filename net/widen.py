@@ -58,13 +58,24 @@ def widen(src, newH):
     w["passW"] = [0.0] * newH
     w["passB"] = src.get("passB", 0.0)
     # valW1 is [Hv, oldH] row-major -> [Hv, newH]; pad each row's new columns with 0 (identity)
-    vw1 = []
-    for r in range(Hv):
-        vw1 += list(src["valW1"][r * oldH:(r + 1) * oldH]) + [0.0] * ext
-    w["valW1"] = vw1
+    def widen_cols(mat, rows, old, new):               # [rows,old] -> [rows,new], new cols padded 0
+        out = []
+        for r in range(rows):
+            out += list(mat[r * old:(r + 1) * old]) + [0.0] * (new - old)
+        return out
+    w["valW1"] = widen_cols(src["valW1"], Hv, oldH, newH)
     w["valB1"] = src["valB1"]
     w["valW2"] = src["valW2"]
     w["valB2"] = src["valB2"]
+    # auxiliary heads (identity-preserving, same as the policy/value heads). Only present on nets trained
+    # with them; older nets simply omit these keys and the trainer re-initialises them on warm-start.
+    if "ownW" in src:
+        w["ownW"] = widen_vec(src["ownW"], oldH, newH, 0.0)          # new channels -> 0 -> ownership unchanged
+        w["ownB"] = src["ownB"]
+        w["scoreW1"] = widen_cols(src["scoreW1"], Hv, oldH, newH)    # pad new input cols with 0
+        w["scoreB1"] = src["scoreB1"]
+        w["scoreW2"] = src["scoreW2"]
+        w["scoreB2"] = src["scoreB2"]
     w["board"] = src.get("board", "tri/m")
     return w
 

@@ -103,7 +103,24 @@
     for (i = 0; i < Hv; i++) vh[i] = relu(vh[i]);
     var vo = W.valB2; for (i = 0; i < Hv; i++) vo += vh[i] * W.valW2[i];
     var value = Math.tanh(vo);
-    return { policy: policy, passLogit: passLogit, value: value, h: h, pooled: pooled };
+    // AUXILIARY HEADS (optional; present only in nets trained with them — old nets skip these and
+    // the search ignores them, so this is backward-compatible). They exist to SHAPE the shared trunk:
+    //   ownership[v] = tanh(hK[v]·ownW + ownB)  -> who ends up owning point v (+1 mine, -1 theirs)
+    //   score        = linear(pooled)           -> final margin (mover POV), normalised by board size
+    // Predicting global territory + final margin forces the trunk to understand the WHOLE board, not
+    // just local fights — which is what pushes the AI away from pure contact ("hunting") play.
+    var ownership = null, score = null;
+    if (W.ownW) {
+      ownership = new Float32Array(NP);
+      for (v = 0; v < NP; v++) { var so = W.ownB, ob = v * H; for (i = 0; i < H; i++) so += h[ob + i] * W.ownW[i]; ownership[v] = Math.tanh(so); }
+    }
+    if (W.scoreW1) {
+      var sh = new Float32Array(Hv); matvec(W.scoreW1, pooled, Hv, H, W.scoreB1, sh);
+      for (i = 0; i < Hv; i++) sh[i] = relu(sh[i]);
+      var sc = W.scoreB2; for (i = 0; i < Hv; i++) sc += sh[i] * W.scoreW2[i];
+      score = sc;
+    }
+    return { policy: policy, passLogit: passLogit, value: value, ownership: ownership, score: score, h: h, pooled: pooled };
   }
 
   // softmax over legal empty points (+ pass), returns {probs:{id:p}, passP}
@@ -128,7 +145,9 @@
       F: F, H: H, K: K, Hv: Hv,
       inW: rnd(H * F, F), inB: zeros(H), layers: layers,
       polW: rnd(H, H), polB: 0, passW: rnd(H, H), passB: 0,
-      valW1: rnd(Hv * H, H), valB1: zeros(Hv), valW2: rnd(Hv, Hv), valB2: 0
+      valW1: rnd(Hv * H, H), valB1: zeros(Hv), valW2: rnd(Hv, Hv), valB2: 0,
+      ownW: rnd(H, H), ownB: 0,                                    // ownership head (per-node tanh)
+      scoreW1: rnd(Hv * H, H), scoreB1: zeros(Hv), scoreW2: rnd(Hv, Hv), scoreB2: 0  // score head (linear)
     };
   }
 

@@ -26,11 +26,11 @@ NET.setWeights(JSON.parse(fs.readFileSync(wfile, "utf8")));
 // board is the SAME position to the net, so this is a correct, label-preserving copy: stones, the ko
 // point, and every move in the policy target pi all move to their image; turn and outcome are unchanged.
 function applySym(rec, P) {
-  const n = P.length, c = new Array(n);
-  for (let i = 0; i < n; i++) c[P[i]] = rec.c[i];               // stone at i now sits at P[i]
+  const n = P.length, c = new Array(n), own = new Array(n);
+  for (let i = 0; i < n; i++) { c[P[i]] = rec.c[i]; own[P[i]] = rec.own[i]; }   // per-point fields move with the board
   const ko = (typeof rec.ko === "number" && rec.ko >= 0 && rec.ko < n) ? P[rec.ko] : rec.ko;
   const pi = rec.pi.map(([id, v]) => [P[id], v]);               // each visited move maps to its image
-  return { c: c.join(""), turn: rec.turn, ko: ko, pi: pi };
+  return { c: c.join(""), turn: rec.turn, ko: ko, pi: pi, own: own.join(""), sm: rec.sm };
 }
 
 // Pick which symmetries to emit for this board: identity (index 0) always, plus up to maxSyms-1 more.
@@ -63,14 +63,19 @@ for (let g = 0; g < nGames; g++) {
     if (GO.status(s).over) break;
     mv++;
   }
-  const w = GO.scoreArea(s, 160).winner;
+  const fin = GO.scoreArea(s, 160), w = fin.winner, fOwn = fin.own, fMargin = fin.margin;
   const syms = chooseSyms(GO.symmetries());       // symmetry views of THIS board (set above via setBoard)
   let buf = "", nWritten = 0;
   for (const r of recs) {
     const z = w === "draw" ? 0 : (((w === "black" ? 1 : 2) === r.turn) ? 1 : -1);
+    // aux targets, from the record's mover POV: ownership per point ('1' mine / '2' theirs / '0' neutral)
+    // and the final score margin normalised by board size. Both come from the SAME final scoreArea.
+    let ownStr = ""; for (let i = 0; i < NP; i++) ownStr += (fOwn[i] === 0 ? "0" : fOwn[i] === r.turn ? "1" : "2");
+    const sm = (r.turn === 1 ? fMargin : -fMargin) / NP;
+    const full = { c: r.c, turn: r.turn, ko: r.ko, pi: r.pi, own: ownStr, sm: sm };
     for (const P of syms) {                        // emit the position once per symmetry (free extra data)
-      const a = applySym(r, P);
-      buf += JSON.stringify({ c: a.c, turn: a.turn, ko: a.ko, pi: a.pi, z, board: bkey }) + "\n";
+      const a = applySym(full, P);
+      buf += JSON.stringify({ c: a.c, turn: a.turn, ko: a.ko, pi: a.pi, z, own: a.own, sm: a.sm, board: bkey }) + "\n";
       nWritten++;
     }
   }

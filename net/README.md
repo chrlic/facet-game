@@ -77,7 +77,19 @@ body:   h = ReLU(W_in · features + b_in)                    # project 7 → H (
 
 heads:  policy[point] = h[point] · W_pol + b_pol            # one score per point → softmax over legal
         value        = tanh( pooled(h) · W_val … )          # one number in [-1,1]
+        ownership[pt]= tanh( h[point] · W_own + b_own )     # AUX: who ends up owning this point
+        score        = pooled(h) · W_score …  (linear)      # AUX: final margin (mover POV)
 ```
+
+**Auxiliary heads (ownership + score)** are the two extra outputs above. They are *not* used to pick
+moves — the search only reads `policy` and `value`. Their job is to **shape the shared body** during
+training. A small value head, learning only from a single win/lose bit per game, tends to understand
+*local* fights (which it can see within the search horizon) but not *whole-board* territory (which pays
+off dozens of moves later). By also forcing the net to predict, for **every point, who finally owns it**
+and the **final score margin**, we make the body learn a global sense of territory and influence — the
+thing that separates "hunting" the opponent's stones from playing big points across the board. This is
+KataGo's key idea, shrunk to our scale. Both heads are **optional**: nets trained without them (and the
+pure-Python server) simply omit the weights and skip the computation, so it's fully backward-compatible.
 
 The key operation is **message passing**: each round, every point looks at the *average* of its
 neighbours and updates itself. After K rounds, a point "knows" about everything within K steps —
@@ -190,15 +202,23 @@ training-set size; the identity is always kept.)
 
 ## 6. Training — turning data into weights (`net/train.js`, `net/train_mlx.py`)
 
-The loss is two terms added together:
+The loss adds four terms — the two main ones plus the two auxiliary heads (§3):
 
 ```
 loss =  cross_entropy(net_policy, π)      # make the policy match the search's visit distribution
-      + (net_value − z)²                  # make the value predict the game outcome
+      +        (net_value − z)²           # make the value predict the game outcome
+      + 0.15 · mean_pt (own_pt − t_pt)²   # AUX: predict who finally owns each point
+      + 0.15 ·      (net_score − m)²      # AUX: predict the final score margin
 ```
 
 - **Cross-entropy** pushes probability mass onto the moves the search preferred.
 - **MSE** on the value teaches "am I winning?" from the eventual result.
+- **Ownership + score** (weighted 0.15 each, so they guide but don't dominate) teach *whole-board*
+  understanding. The targets come straight from the final `scoreArea`: `t_pt ∈ {+1 mine, −1 theirs,
+  0 neutral}` per point, and `m` = final margin ÷ board-size (mover POV). Predicting them forces the
+  body to model territory globally — see §3 for *why* that fixes contact-only ("hunting") play.
+  The heads are trained only when a record carries the targets (self-play adds them; older data trains
+  policy+value only), and `net2net` widening preserves them exactly like the other heads.
 
 **`net/train.js` is the teaching version:** it implements the network's forward pass *and its
 backpropagation by hand* — every gradient is written out explicitly, and a **finite-difference gradient
