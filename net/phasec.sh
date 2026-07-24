@@ -8,12 +8,16 @@
 cd /Users/mdivis/Documents/playground/games || exit 1
 BUDGET=${1:-41400}; WORKERS=${2:-3}; GAMES=${3:-36}; SIMS=${4:-160}; EPOCHS=${5:-6}
 NEWH=64; LR=2e-3; DSIMS=120; MAXSYM=4        # cap symmetries/position (tri->4x, elong->1x): aug without starving self-play
-GATE=0.55                                    # promote candidate only if it wins >= GATE vs champion (tri/m + elong/m combined)
+# PER-FAMILY GATE (v2): a candidate is promoted ONLY if it is not worse than the champion on EITHER family
+# (>= FLOOR on both tri/m and elong/m) AND improves overall (sum >= SUMREQ). This forbids the tri-for-elong
+# trade that made the previous run drift (tri/m 0.625 -> 0.188 while elong rose). Bigger GATEGAMES so the
+# gate reflects real edges, not 6-game noise.
+GATEGAMES=16; FLOOR=0.5; SUMREQ=1.10
 BOARDS="tri/s,tri/m,tri/l,elong/s,elong/m,elong/l"     # all sizes + both adjacencies (deg-6 and deg-5)
 D=net/spc; mkdir -p "$D"; : > "$D/sp.log"; : > "$D/duel.log"
 # champion = the frozen best-so-far (self-play + warm-start always use THIS). Start = widened H48 champion.
 python3 net/widen.py docs/hexago-weights.json "$D/best.json" $NEWH
-echo "PHASE C(redo) start $(date)  budget=${BUDGET}s workers=$WORKERS games=$GAMES sims=$SIMS H=$NEWH maxsym=$MAXSYM gate=$GATE"
+echo "PHASE C(redo2) start $(date)  budget=${BUDGET}s workers=$WORKERS games=$GAMES sims=$SIMS H=$NEWH maxsym=$MAXSYM gate=per-family(floor$FLOOR,sum$SUMREQ,${GATEGAMES}g)"
 echo "  boards=$BOARDS"
 echo -n "iter0 (widened champion) vs MC tri/m: "; node net/duel.js "$D/best.json" MC 6 $DSIMS tri m 200 2>>"$D/duel.log"
 
@@ -35,18 +39,18 @@ while [ $SECONDS -lt "$BUDGET" ]; do
   echo "ITER $it train ($(wc -l < "$D/train.jsonl") pos, GPU) $(date +%H:%M:%S)"
   # warm-start from the CHAMPION (adds aux heads on iter1); candidate -> itNw.json
   python3 net/train_mlx.py --data "$D/train.jsonl" --out "$D/it${it}w.json" --epochs $EPOCHS --lr $LR --warm "$D/best.json" 2>&1 | tail -1
-  # GATE: duel candidate vs champion on two boards; promote only if combined win-rate >= GATE
-  wa=$(node net/duel.js "$D/it${it}w.json" "$D/best.json" 6 $DSIMS tri   m 200 2>>"$D/duel.log")
-  wb=$(node net/duel.js "$D/it${it}w.json" "$D/best.json" 6 $DSIMS elong m 200 2>>"$D/duel.log")
-  comb=$(awk "BEGIN{print ($wa+$wb)/2}")
-  pass=$(awk "BEGIN{print ($comb>=$GATE)?1:0}")
+  # PER-FAMILY GATE: duel candidate vs champion on tri/m AND elong/m; promote only if >= FLOOR on BOTH
+  # (no regression on either family) AND their sum >= SUMREQ (a real overall gain, not a double-tie).
+  wa=$(node net/duel.js "$D/it${it}w.json" "$D/best.json" $GATEGAMES $DSIMS tri   m 200 2>>"$D/duel.log")
+  wb=$(node net/duel.js "$D/it${it}w.json" "$D/best.json" $GATEGAMES $DSIMS elong m 200 2>>"$D/duel.log")
+  pass=$(awk "BEGIN{print ($wa>=$FLOOR && $wb>=$FLOOR && ($wa+$wb)>=$SUMREQ)?1:0}")
   if [ "$pass" = "1" ]; then
     cp "$D/it${it}w.json" "$D/best.json"; promos=$((promos+1))
-    echo "ITER $it candidate vs champion: tri/m $wa  elong/m $wb  combined $comb  -> PROMOTED (#$promos)"
+    echo "ITER $it candidate vs champ: tri/m $wa  elong/m $wb  -> PROMOTED (#$promos)"
     echo -n "  new champion vs MC tri/m: ";   node net/duel.js "$D/best.json" MC 6 $DSIMS tri   m 200 2>>"$D/duel.log"
     echo -n "  new champion vs MC elong/m: "; node net/duel.js "$D/best.json" MC 6 $DSIMS elong m 200 2>>"$D/duel.log"
   else
-    echo "ITER $it candidate vs champion: tri/m $wa  elong/m $wb  combined $comb  -> kept champion"
+    echo "ITER $it candidate vs champ: tri/m $wa  elong/m $wb  -> kept champion (need >=$FLOOR both, sum>=$SUMREQ)"
   fi
 done
 echo "PHASE C(redo) done $(date)  $it iterations, $promos promotions, ${SECONDS}s elapsed"
