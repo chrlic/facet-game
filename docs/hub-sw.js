@@ -1,4 +1,4 @@
-const CACHE = "games-hub-v1";
+const CACHE = "games-hub-v2";
 // The hub PWA (scope "./") caches the whole suite so every game works offline
 // once installed. Each game also ships its own SW for individual installs.
 const ASSETS = [
