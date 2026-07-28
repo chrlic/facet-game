@@ -29,6 +29,9 @@
   .boardwrap{background:var(--panel);padding:12px;border-radius:16px;
              box-shadow:0 12px 44px #0009;max-width:100%}
   svg{display:block;width:min(76vw,560px);height:min(76vw,560px);touch-action:manipulation}
+  /* On a narrow/portrait phone use the abundant vertical space too, so the (turned) board can grow
+     larger than a width-only square. Desktop keeps the 76vw square via the min(). */
+  @media (max-width:640px){ svg{width:min(96vw,82vh,560px);height:min(96vw,82vh,560px)} }
   .panel{flex:1;min-width:260px;max-width:340px;display:flex;flex-direction:column;gap:12px}
   .card{background:var(--panel);border:1px solid var(--line-c);border-radius:14px;padding:14px 16px}
   .card h2{margin:0 0 10px;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-weight:700}
@@ -83,15 +86,16 @@
           <circle v-for="t in territory" :key="'t'+t.id" :cx="t.x" :cy="t.y" :r="stoneR*0.7"
                   :fill="t.c===1?'var(--black)':'var(--white)'" opacity="0.3" pointer-events="none"/>
         </template>
-        <!-- stones -->
+        <!-- stones (dead-marked stones dim at game end) -->
         <circle v-for="s in stones" :key="'s'+s.id" :cx="s.x" :cy="s.y" :r="stoneR"
                 :fill="s.c===1?'var(--black)':'var(--white)'"
-                :stroke="s.c===1?'#000':'#b9b4a2'" stroke-width="1.2" pointer-events="none"/>
+                :stroke="s.c===1?'#000':'#b9b4a2'" stroke-width="1.2" pointer-events="none"
+                :opacity="(over && deadSet[s.id]) ? 0.28 : 1"/>
         <circle v-if="lastPt" :cx="lastPt.x" :cy="lastPt.y" :r="stoneR*0.4" fill="none"
                 :stroke="lastPt.c===1?'#f4f2e8':'#1b1b20'" stroke-width="2.6" pointer-events="none"/>
-        <!-- click targets -->
+        <!-- click targets: place a stone during play, toggle a dead group once the game is over -->
         <circle v-for="p in points" :key="'h'+p.id" class="hit" :cx="p.x" :cy="p.y" :r="hitR"
-                fill="transparent" pointer-events="all" @click="place(p.id)"/>
+                fill="transparent" pointer-events="all" @click="pointClick(p.id)"/>
       </svg>
     </div>
 
@@ -113,6 +117,7 @@
         </div>
         <div v-if="thinking" class="think" style="margin-top:8px"><span class="pulse">◉</span> AI is thinking…</div>
         <div v-else-if="lastPass" class="think" style="margin-top:8px;color:var(--muted)">{{lastPass}} passed — pass again to end &amp; score.</div>
+        <div v-else-if="over && !online" class="think" style="margin-top:8px;color:var(--muted)">Miscounted? Tap a dead group to toggle it — the score updates.</div>
       </div>
 
       <div class="card">
@@ -236,27 +241,46 @@ createApp({
       lbOpen:false, lbRows:[], errorMsg:null, _errT:null,
       bugText:'', reportBusy:false, reportMsg:null, _oppRunning:false,
       _worker:null, _workerBad:false, _aiReq:0, _aiPending:null, _aiTimer:null, _aiWatch:null,   // off-thread AI (Web Worker)
+      portrait: (typeof window!=='undefined' && window.innerWidth < 640),   // narrow screen -> turn the board to fill vertical space
+      deadSet:{}, _deadSeeded:false,   // manual dead-stone corrections at game end (id -> true)
     };
   },
   computed: {
     isServer(){ return this.adapter && this.adapter.mode==='server'; },
-    points(){ return this.board.points.map((p,i)=>({id:i, x:p.x, y:p.y})); },
-    edges(){ const adj=this.board.adj, pts=this.board.points, out=[];
+    // How far to rotate the board FOR RENDERING ONLY (the engine/adjacency/move-ids are untouched). On a
+    // narrow (portrait) screen the flat-top tri hexagon (wider than tall) wastes vertical space, so we
+    // turn it to pointy-top to fill the taller area. NB: 60° is a no-op for a hexagon (6-fold symmetry);
+    // 90° is the turn that actually changes the aspect. Elong is ~square, so leave it.
+    boardRot(){ return (this.portrait && this.board.type==='tri') ? 90 : 0; },
+    // rotated + re-fitted board geometry: {tf(pt)->{x,y}, pts:[…], scale}. Rotating about the board centre
+    // then re-normalising into the 800 box keeps the board centred and as large as possible after the turn.
+    geom(){
+      const rot=this.boardRot, src=this.board.points, VIEW=800, PAD=60, cx=VIEW/2, cy=VIEW/2;
+      if(!rot){ const id=p=>({x:p.x,y:p.y}); return {tf:id, pts:src.map(id), scale:1}; }
+      const a=rot*Math.PI/180, c=Math.cos(a), s=Math.sin(a);
+      const rp=src.map(p=>({x:c*(p.x-cx)-s*(p.y-cy)+cx, y:s*(p.x-cx)+c*(p.y-cy)+cy}));
+      let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const p of rp){ if(p.x<x0)x0=p.x; if(p.y<y0)y0=p.y; if(p.x>x1)x1=p.x; if(p.y>y1)y1=p.y; }
+      const uw=x1-x0, uh=y1-y0, scale=(VIEW-2*PAD)/Math.max(uw,uh), ox=(VIEW-uw*scale)/2, oy=(VIEW-uh*scale)/2;
+      const tf=p=>{ const rx=c*(p.x-cx)-s*(p.y-cy)+cx, ry=s*(p.x-cx)+c*(p.y-cy)+cy; return {x:(rx-x0)*scale+ox, y:(ry-y0)*scale+oy}; };
+      return {tf, pts:src.map(tf), scale};
+    },
+    points(){ return this.geom.pts.map((p,i)=>({id:i, x:p.x, y:p.y})); },
+    edges(){ const adj=this.board.adj, pts=this.geom.pts, out=[];
       for(let i=0;i<adj.length;i++) for(const j of adj[i]) if(j>i)
         out.push({x1:pts[i].x, y1:pts[i].y, x2:pts[j].x, y2:pts[j].y}); return out; },
-    hull(){ return this.board.hull.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' '); },
-    edgePx(){ return this.board.edgePx; },
-    stoneR(){ return this.board.edgePx*0.39; },
-    hitR(){ return this.board.edgePx*0.52; },
+    hull(){ const tf=this.geom.tf; return this.board.hull.map(p=>{const q=tf(p);return q.x.toFixed(1)+','+q.y.toFixed(1);}).join(' '); },
+    edgePx(){ return this.board.edgePx*this.geom.scale; },
+    stoneR(){ return this.edgePx*0.39; },
+    hitR(){ return this.edgePx*0.52; },
     turn(){ return this.state.turn; },
-    stones(){ const c=this.state.color, pts=this.board.points, out=[];
+    stones(){ const c=this.state.color, pts=this.geom.pts, out=[];
       for(let i=0;i<c.length;i++) if(c[i]) out.push({id:i, x:pts[i].x, y:pts[i].y, c:c[i]}); return out; },
-    lastPt(){ const l=this.state.last; if(l<0) return null; const p=this.board.points[l]; return {x:p.x, y:p.y, c:3-this.state.turn}; },
+    lastPt(){ const l=this.state.last; if(l<0) return null; const p=this.geom.pts[l]; return {x:p.x, y:p.y, c:3-this.state.turn}; },
     sc(){ const s=this.scoreView ? this.scoreView : GO.scoreLive(this.state);
       return { black:(s.black%1?s.black.toFixed(1):s.black), white:(s.white%1?s.white.toFixed(1):s.white),
                terrB:s.terrB, terrW:s.terrW, capB:s.capB, capW:s.capW }; },
     territory(){ if(!this.over || !this.scoreView) return [];
-      const own=this.scoreView.own, col=this.state.color, pts=this.board.points, out=[];
+      const own=this.scoreView.own, col=this.state.color, pts=this.geom.pts, out=[];
       for(let i=0;i<own.length;i++){ if(!own[i]) continue;
         // shade owned empty points (territory) and dead stones (opponent stone inside owner's area)
         if(col[i]===0 || col[i]!==own[i]) out.push({id:i, x:pts[i].x, y:pts[i].y, c:own[i]});
@@ -306,7 +330,12 @@ createApp({
     },
     // unified action entry: offline applies + local AI; online sends to the server first
     async act(a){
-      if(!this.online){ this._applyAction(a); if(!this.over && this.turn!==this.playerColor) this.aiTurn(); return; }
+      if(!this.online){ this._applyAction(a);
+        // Paint the player's stone BEFORE starting the AI search — two rAFs guarantee the browser has
+        // rendered the human move first, so it never looks like the stone waits for the AI's reply.
+        if(!this.over && this.turn!==this.playerColor)
+          requestAnimationFrame(()=>requestAnimationFrame(()=>{ if(!this.over && this.turn!==this.playerColor) this.aiTurn(); }));
+        return; }
       if(this.busy || this.over || this.turn!==this.playerColor) return;
       this.busy=true;
       const r=await this._call(()=>this.adapter.moveAction(this.gid, a));
@@ -376,8 +405,32 @@ createApp({
       // Final: deterministic territory (MC only decides dead stones) so every enclosed region is
       // counted + shaded in full. Live: conservative MC estimate (deterministic flood-fill would
       // over-count an unsettled/open board).
-      this.scoreView = this.over ? GO.scoreArea(this.state, 260)
-                     : (this.state.moveNo >= 6 ? GO.scoreFinal(this.state, 80) : null); },
+      if(this.over){
+        // At game end, seed the manual dead-stone set ONCE from the Monte-Carlo auto-count (a stone whose
+        // point ends up owned by the OTHER colour was judged dead), then score deterministically from that
+        // set — so the user can click to correct any group the auto-count got wrong (toggleDead()).
+        if(!this._deadSeeded){
+          const auto=GO.scoreArea(this.state,260), own=auto.own, col=this.state.color, seed={};
+          for(let i=0;i<col.length;i++) if(col[i]!==0 && own[i]!==col[i]) seed[i]=true;
+          this.deadSet=seed; this._deadSeeded=true;
+        }
+        this.scoreView = GO.scoreWithDead(this.state, Object.keys(this.deadSet).map(Number));
+      } else {
+        this._deadSeeded=false; if(Object.keys(this.deadSet).length) this.deadSet={};
+        this.scoreView = this.state.moveNo >= 6 ? GO.scoreFinal(this.state, 80) : null;
+      } },
+    // manual dead-stone correction: click a stone at game end to toggle its whole group dead/alive; the
+    // territory score updates immediately. Online games use the SERVER's authoritative score, so no edits.
+    toggleDead(id){
+      if(!this.over || this.online) return;
+      const col=this.state.color; if(col[id]===0) return;                  // only stones can be marked dead
+      const grp=GO.group(col, id).stones, anyDead=grp.some(g=>this.deadSet[g]), nd={...this.deadSet};
+      for(const g of grp){ if(anyDead) delete nd[g]; else nd[g]=true; }    // toggle the whole group
+      this.deadSet=nd;
+      this.scoreView=GO.scoreWithDead(this.state, Object.keys(this.deadSet).map(Number));
+    },
+    // board tap: place a stone during play, or toggle a dead group once the game is over
+    pointClick(id){ if(this.over) this.toggleDead(id); else this.place(id); },
     undo(){
       if(!this.history.length || this.online) return;
       this.state=this.history.pop();
@@ -516,6 +569,8 @@ createApp({
     },
   },
   async mounted(){
+    this._onResize=()=>{ this.portrait = window.innerWidth < 640; };
+    window.addEventListener('resize', this._onResize); this._onResize();
     const cc=localStorage.getItem('hxg_color'); if(cc) this.colorChoice=cc;
     const bc=localStorage.getItem('hxg_board'); if(bc) this.boardChoice=bc;
     const sz=localStorage.getItem('hxg_size'); if(sz) this.sizeChoice=sz;

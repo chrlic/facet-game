@@ -1,4 +1,4 @@
-const CACHE = "backbone-v2";
+const CACHE = "backbone-v3";
 const ASSETS = [
   "./backbone.html",
   "./vue.global.prod.js",

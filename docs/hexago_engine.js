@@ -442,6 +442,31 @@
              own: own, margin: black - white, winner: black > white ? "black" : (white > black ? "white" : "draw") };
   }
 
+  // Area score given an EXPLICIT set of dead stones — for MANUAL dead-stone correction at game end when
+  // the Monte-Carlo auto-count gets a group wrong. Same deterministic territory flood-fill as scoreArea,
+  // but the caller decides which stones are dead (they become prisoners + their points become the
+  // surrounder's territory). `dead` = array of point ids marked dead. Same return shape as scoreArea.
+  function scoreWithDead(state, dead) {
+    var col = state.color.slice(), prisB = 0, prisW = 0, isDead = new Uint8Array(NP), i, k, r;
+    for (i = 0; i < dead.length; i++) if (dead[i] >= 0 && dead[i] < NP) isDead[dead[i]] = 1;
+    for (i = 0; i < NP; i++) { if (col[i] === 0 || !isDead[i]) continue; var cur = col[i]; col[i] = 0; if (cur === 2) prisB++; else prisW++; }
+    var own = new Int8Array(NP), seen = new Int8Array(NP), terrB = 0, terrW = 0;
+    for (i = 0; i < NP; i++) if (col[i]) own[i] = col[i];
+    for (i = 0; i < NP; i++) {
+      if (col[i] !== 0 || seen[i]) continue;
+      var stack = [i], region = [], border = 0; seen[i] = 1;
+      while (stack.length) { var v = stack.pop(); region.push(v); var ns = ADJ[v];
+        for (k = 0; k < ns.length; k++) { var u = ns[k]; if (col[u] === 0) { if (!seen[u]) { seen[u] = 1; stack.push(u); } } else border |= col[u]; } }
+      var owner = border === 1 ? 1 : border === 2 ? 2 : 0;
+      for (r = 0; r < region.length; r++) own[region[r]] = owner;
+      if (owner === 1) terrB += region.length; else if (owner === 2) terrW += region.length;
+    }
+    var capB = state.caps[1] + prisB, capW = state.caps[2] + prisW;
+    var black = terrB + capB, white = terrW + capW + KOMI;
+    return { black: black, white: white, terrB: terrB, terrW: terrW, capB: capB, capW: capW, komi: KOMI,
+             own: own, margin: black - white, winner: black > white ? "black" : (white > black ? "white" : "draw") };
+  }
+
   // ---- Monte-Carlo AI (flat UCB1 at the root) ----
   var MC_MS = 850;
   function aiMove(state, budgetMs, opts) {
@@ -554,7 +579,7 @@
     board: function () { return { type: CUR.type, points: PTS, adj: ADJ, size: NP, hull: CUR.hull, edgePx: CUR.edgePx, bd: BD }; },
     get points() { return PTS; }, get adj() { return ADJ; }, get size() { return NP; },
     initial: initial, clone: clone, isLegal: isLegal, legalMoves: legalMoves,
-    play: play, pass: pass, ended: ended, score: score, scoreLive: scoreLive, scoreFinal: scoreFinal, scoreArea: scoreArea, status: status, group: group, aiMove: aiMove,
+    play: play, pass: pass, ended: ended, score: score, scoreLive: scoreLive, scoreFinal: scoreFinal, scoreArea: scoreArea, scoreWithDead: scoreWithDead, status: status, group: group, aiMove: aiMove,
     rollout: function (state) { return score(runPlayout(state)).winner; },  // one heavy playout -> winner (for net-PUCT leaf eval)
     // rollout that also records, per point, the colour that FIRST played there (for tree-RAVE / AMAF)
     rolloutFirst: function (state) { var first = new Int8Array(NP); var st = runPlayout(state, first); return { winner: score(st).winner, first: first }; },
