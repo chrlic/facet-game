@@ -28,10 +28,11 @@
   .layout{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
   .boardwrap{background:var(--panel);padding:12px;border-radius:16px;
              box-shadow:0 12px 44px #0009;max-width:100%}
-  svg{display:block;width:min(76vw,560px);height:min(76vw,560px);touch-action:manipulation}
-  /* On a narrow/portrait phone use the abundant vertical space too, so the (turned) board can grow
-     larger than a width-only square. Desktop keeps the 76vw square via the min(). */
-  @media (max-width:640px){ svg{width:min(96vw,82vh,560px);height:min(96vw,82vh,560px)} }
+  /* The viewBox is cropped tight to the board (see viewBox computed), so the SVG's own aspect matches the
+     board — height:auto follows it, no letterboxed side/top padding. margin:auto centres it in the wrap. */
+  svg{display:block;width:min(76vw,560px);height:auto;max-width:100%;max-height:82vh;margin:0 auto;touch-action:manipulation}
+  /* Narrow/portrait phone: board fills the full width (and the turned, taller board uses the vertical space). */
+  @media (max-width:640px){ .boardwrap{width:100%} svg{width:100%} }
   .panel{flex:1;min-width:260px;max-width:340px;display:flex;flex-direction:column;gap:12px}
   .card{background:var(--panel);border:1px solid var(--line-c);border-radius:14px;padding:14px 16px}
   .card h2{margin:0 0 10px;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-weight:700}
@@ -71,7 +72,7 @@
 
   <div class="layout">
     <div class="boardwrap">
-      <svg viewBox="0 0 800 800" @contextmenu.prevent>
+      <svg ref="svgEl" viewBox="0 0 800 800" @contextmenu.prevent>
         <!-- board background (visible on the dark page) -->
         <polygon :points="hull" fill="var(--board)" stroke="var(--board)" :stroke-width="edgePx"
                  stroke-linejoin="round" stroke-linecap="round"/>
@@ -264,6 +265,14 @@ createApp({
       const tf=p=>{ const rx=c*(p.x-cx)-s*(p.y-cy)+cx, ry=s*(p.x-cx)+c*(p.y-cy)+cy; return {x:(rx-x0)*scale+ox, y:(ry-y0)*scale+oy}; };
       return {tf, pts:src.map(tf), scale};
     },
+    // tight viewBox around the (possibly rotated) board + a margin for the fat board-background stroke and
+    // stones. This crops away the empty space a fixed square viewBox would leave when the board isn't square
+    // — which is what left the board off-centre with a wide right margin on mobile. Applied via setAttribute
+    // (mounted + watcher) because Vue lowercases a :viewBox binding to the SVG-ignored "viewbox".
+    viewBox(){ const p=this.geom.pts; let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+      for(const q of p){ if(q.x<x0)x0=q.x; if(q.y<y0)y0=q.y; if(q.x>x1)x1=q.x; if(q.y>y1)y1=q.y; }
+      const m=this.edgePx*0.75;
+      return (x0-m).toFixed(1)+' '+(y0-m).toFixed(1)+' '+(x1-x0+2*m).toFixed(1)+' '+(y1-y0+2*m).toFixed(1); },
     points(){ return this.geom.pts.map((p,i)=>({id:i, x:p.x, y:p.y})); },
     edges(){ const adj=this.board.adj, pts=this.geom.pts, out=[];
       for(let i=0;i<adj.length;i++) for(const j of adj[i]) if(j>i)
@@ -571,6 +580,9 @@ createApp({
   async mounted(){
     this._onResize=()=>{ this.portrait = window.innerWidth < 640; };
     window.addEventListener('resize', this._onResize); this._onResize();
+    // keep the SVG's viewBox cropped to the board (setAttribute dodges Vue's :viewBox lowercasing bug)
+    const applyVB=()=>{ if(this.$refs.svgEl) this.$refs.svgEl.setAttribute('viewBox', this.viewBox); };
+    this.$watch('viewBox', ()=>this.$nextTick(applyVB)); this.$nextTick(applyVB);
     const cc=localStorage.getItem('hxg_color'); if(cc) this.colorChoice=cc;
     const bc=localStorage.getItem('hxg_board'); if(bc) this.boardChoice=bc;
     const sz=localStorage.getItem('hxg_size'); if(sz) this.sizeChoice=sz;
