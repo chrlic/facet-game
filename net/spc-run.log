@@ -1,0 +1,45 @@
+widened H48 -> H64 (K3) -> net/spc/best.json
+PHASE C(redo2) start Fri Jul 24 07:23:42 CEST 2026  budget=41400s workers=3 games=36 sims=160 H=64 maxsym=4 gate=per-family(floor0.5,sum1.10,16g)
+  boards=tri/s,tri/m,tri/l,elong/s,elong/m,elong/l
+iter0 (widened champion) vs MC tri/m: 0.833
+=== ITER 1 self-play 07:27:13 [elapsed 211s, promos 0] ===
+ITER 1 train (    8711 pos, GPU) 07:45:09
+saved -> net/spc/it1w.json (H64 K3, 574 KB)
+ITER 1 candidate vs champ: tri/m 0.625  elong/m 0.500  -> PROMOTED (#1)
+  new champion vs MC tri/m: 1.000
+  new champion vs MC elong/m: 0.667
+=== ITER 2 self-play 08:20:06 [elapsed 3384s, promos 1] ===
+ITER 2 train (   17705 pos, GPU) 08:36:28
+saved -> net/spc/it2w.json (H64 K3, 572 KB)
+ITER 2 candidate vs champ: tri/m 0.563  elong/m 0.438  -> kept champion (need >=0.5 both, sum>=1.10)
+=== ITER 3 self-play 09:01:51 [elapsed 5889s, promos 1] ===
+ITER 3 train (   18077 pos, GPU) 09:18:22
+saved -> net/spc/it3w.json (H64 K3, 572 KB)
+ITER 3 candidate vs champ: tri/m 0.313  elong/m 0.750  -> kept champion (need >=0.5 both, sum>=1.10)
+=== ITER 4 self-play 09:42:51 [elapsed 8349s, promos 1] ===
+ITER 4 train (   18187 pos, GPU) 09:59:29
+saved -> net/spc/it4w.json (H64 K3, 572 KB)
+ITER 4 candidate vs champ: tri/m 0.563  elong/m 0.688  -> PROMOTED (#2)
+  new champion vs MC tri/m: 1.000
+  new champion vs MC elong/m: 0.833
+=== ITER 5 self-play 10:33:43 [elapsed 11401s, promos 2] ===
+ITER 5 train (   17989 pos, GPU) 10:52:44
+saved -> net/spc/it5w.json (H64 K3, 571 KB)
+ITER 5 candidate vs champ: tri/m 0.625  elong/m 0.563  -> PROMOTED (#3)
+  new champion vs MC tri/m: 1.000
+  new champion vs MC elong/m: 0.833
+=== ITER 6 self-play 11:25:28 [elapsed 14506s, promos 3] ===
+ITER 6 train (   17597 pos, GPU) 11:42:07
+saved -> net/spc/it6w.json (H64 K3, 570 KB)
+ITER 6 candidate vs champ: tri/m 0.438  elong/m 0.563  -> kept champion (need >=0.5 both, sum>=1.10)
+=== ITER 7 self-play 12:06:46 [elapsed 16984s, promos 3] ===
+ITER 7 train (   17430 pos, GPU) 12:23:42
+saved -> net/spc/it7w.json (H64 K3, 571 KB)
+ITER 7 candidate vs champ: tri/m 0.438  elong/m 0.375  -> kept champion (need >=0.5 both, sum>=1.10)
+=== ITER 8 self-play 12:48:26 [elapsed 19484s, promos 3] ===
+ITER 8 train (   17573 pos, GPU) 13:06:43
+saved -> net/spc/it8w.json (H64 K3, 570 KB)
+ITER 8 candidate vs champ: tri/m 0.438  elong/m 0.500  -> kept champion (need >=0.5 both, sum>=1.10)
+=== ITER 9 self-play 13:32:19 [elapsed 22117s, promos 3] ===
+ITER 9 train (   18008 pos, GPU) 13:51:13
+saved -> net/spc/it9w.json (H64 K3, 571 KB)

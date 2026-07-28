@@ -17,3 +17,7 @@ logs/**
 net/*.jsonl
 net/gen.log
 net/spb/
+net/spc/it*.jsonl
+net/spc/duel.log
+net/spc/it1*.json
+TODO.md
