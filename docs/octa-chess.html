@@ -35,6 +35,9 @@
   .glyph{pointer-events:none;font-family:"Segoe UI Symbol","Noto Sans Symbols2","Apple Symbols",sans-serif;
          text-anchor:middle;dominant-baseline:central}
   .coord{pointer-events:none;font:600 11px ui-monospace,monospace;fill:#ffffff88;text-anchor:middle}
+  .helpbtn{background:none;border:1px solid var(--line);width:30px;height:30px;border-radius:50%;color:var(--muted);font-weight:800;cursor:pointer;font-size:15px;line-height:1;flex:none}
+  .helpbtn:hover{background:#243049;color:var(--ink)}
+  .helpbtn.active{background:var(--hl);color:#14171f;border-color:transparent}
   .panel{flex:1;min-width:270px;max-width:340px;display:flex;flex-direction:column;gap:12px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
   .card h2{margin:0 0 10px;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-weight:700}
@@ -70,7 +73,10 @@
 </head>
 <body>
 <div id="app" class="wrap" v-cloak>
-  <h1>OCTA-CHESS</h1>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <h1>OCTA-CHESS</h1>
+    <button :class="['helpbtn',{active:showRules}]" @click="showRules=!showRules" title="Rules &amp; help">?</button>
+  </div>
   <p class="sub">Chess where every diagonal runs through a gate.
      <a href="./">⊞ Games</a></p>
 
@@ -199,9 +205,9 @@
         </div>
       </div>
 
-      <div class="card">
-        <details>
-          <summary>How to play</summary>
+      <div class="card rules" v-show="showRules">
+          <div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--ink);font-size:14px">How to play OCTA-CHESS</b>
+            <button class="helpbtn active" @click="showRules=false" title="Close">×</button></div>
           <p>The board is <b>64 octagons</b> (a normal 8×8 chess grid) plus <b>49 gates</b> —
           the diamond cells sitting on every interior corner. Every diagonal runs
           <i>octagon → gate → octagon</i>.</p>
@@ -225,7 +231,6 @@
           pawn or enemy Warden can take it. Its job is to seize and hold the gate network.</p>
           <p>Only light pieces (K, B, N, P, and the Warden) can rest in gates — heavy pieces can't cement
           them shut. The fight is for the four central gates. Checkmate wins.</p>
-        </details>
       </div>
 
       <div class="card">
@@ -288,6 +293,7 @@ const files = 'abcdefgh';
 createApp({
   data(){
     return {
+      showRules: false,
       useWarden: true,
       state: OK.initial({warden:true}),
       history: [],                 // {state, move, san, captured}

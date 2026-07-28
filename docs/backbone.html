@@ -62,6 +62,13 @@
   .toast.info{background:#2d5fa6}
   .rules{line-height:1.6;font-size:13px;color:var(--muted)}
   .rules b{color:var(--ink)}
+  .rules h3{margin:14px 0 4px;font-size:13px;color:var(--ink);text-transform:uppercase;letter-spacing:1px}
+  .rules h3:first-child{margin-top:0}
+  .rules p,.rules ul{margin:0 0 7px} .rules ul{padding-left:17px} .rules li{margin:2px 0}
+  .rules table{border-collapse:collapse;width:100%;margin:4px 0 8px;font-size:12.5px}
+  .rules th,.rules td{border:1px solid #2a3147;padding:4px 7px;text-align:left;vertical-align:top}
+  .rules th{color:var(--ink);background:#141a2e}
+  .rules .call{background:#141a2e;border-left:3px solid var(--p1);border-radius:6px;padding:7px 10px;margin:7px 0}
   .listrow{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px}
   .listrow .ldetail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .turnbadge{color:var(--p1);font-weight:700;white-space:nowrap}
@@ -385,21 +392,68 @@
       </div>
 
       <div class="card rules" v-show="showRules">
-        <p><b>Income:</b> 3 BW + 1 per connected city each turn (max 10 saved).
-           Then take <b>2 actions</b>: Build, Hack (1 BW, at most once per turn), or Reroute (free).</p>
-        <p><b>Pieces:</b><br>
-           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-router"/></svg> <b>Router</b> 2 — expands territory, datacenters need 2 adjacent.<br>
-           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-switch"/></svg> <b>Switch</b> 1 — glue, needs 2 adjacent friendly pieces.<br>
-           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-ap"/></svg> <b>Wireless AP</b> 3 — jumps 1 hex.<br>
-           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-firewall"/></svg> <b>Firewall</b> 2 — placed on a piece, absorbs one hack.<br>
-           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-server"/></svg> <b>Server</b> 3 — serves 1 adjacent city.<br>
-           <svg class="picon" viewBox="0 0 24 24" width="14" height="14"><use href="#icon-dc"/></svg> <b>Datacenter</b> 6 — 1 AI token while online.</p>
-        <p><b>Score:</b> 1 AI token per online DC, 1 per connected city,
-           +2 once for two DCs linked through your network.
-           Hacked pieces stop working until the end of your next turn.
-           First to {{ targetVp }} AI tokens at the end of their turn triggers the
-           <b>final turn</b>: your opponent plays one more turn, then the
-           higher score wins (ties go to connected cities, then a draw).</p>
+        <div class="row between"><b style="color:var(--ink);font-size:14px">How to play BACKBONE</b>
+          <button class="dlbtn" @click="showRules=false" title="Close">×</button></div>
+        <h3>Objective</h3>
+        <p>You're a rival network operator. Expand your infrastructure across the hex map, bring
+          <b>Datacenters</b> online, and connect <b>Cities</b> to your network. The first player to reach
+          <b>{{ targetVp }} AI tokens</b> at the end of their turn triggers the endgame (see Winning).</p>
+        <h3>The board</h3>
+        <p>A 9×9 hex grid. Two corners are start hexes — yours already holds a Router and a Server. Seven
+          <b>City</b> hexes (⬢) are neutral, never move, and are shared: both players may connect to the same
+          City at once. The layout is a 180° rotation, so neither corner has a geometric head start.
+          <b>Adjacent</b> = the six hexes touching a hex; a <b>Wireless AP</b> also counts as adjacent to the
+          hex exactly one step beyond it in a straight line (the jumped hex isn't claimed).</p>
+        <h3>Setup</h3>
+        <p>Each player starts with 1 Router + 1 Server on their corner. Player 1 takes <b>3 BW</b>, Player 2
+          takes <b>5 BW</b> (the extra 2 offsets moving second). <b>Bandwidth (BW)</b> is the only currency —
+          spent to Build and to Hack; income adds more each turn, up to a hand limit of 10.</p>
+        <h3>Turn structure</h3>
+        <ul>
+          <li><b>Income</b> — +3 BW, plus +1 per City you're connected to (capped at 10 BW).</li>
+          <li><b>Actions</b> — take any <b>2 actions</b> (Build, Hack, or Reroute; the same one twice is fine).</li>
+          <li><b>Recover</b> — remove Disabled markers from pieces hacked on the opponent's last turn.</li>
+          <li><b>Score</b> — count AI tokens; reaching the target here can end the game.</li>
+        </ul>
+        <h3>The three actions</h3>
+        <p><b>Build</b> — pay the piece's cost and place it on an empty, non-City hex adjacent to your network,
+          keeping the network connected. (Firewalls are the exception: placed on top of a piece you own.)
+          A <b>Switch</b> needs 2+ adjacent friendly pieces — it consolidates, it doesn't expand alone. A
+          <b>Server</b> built next to a City connects it (+1 token).</p>
+        <p><b>Hack</b> (1 BW, once per turn) — choose an enemy piece adjacent to your network. If it carries a
+          <b>Firewall</b>, the Firewall is spent and the piece is safe; otherwise it's <b>Disabled</b> until the
+          end of the victim's next turn — it doesn't connect, serve, or score, and anything reachable only
+          through it drops out of the network too. Hacks never destroy pieces or remove territory.</p>
+        <p><b>Reroute</b> (free) — move one of your Switches or Wireless APs to another legal hex; the network
+          must stay fully connected and at least as large afterward.</p>
+        <h3>Infrastructure pieces</h3>
+        <table><tr><th>Piece</th><th>Cost</th><th>What it does</th></tr>
+          <tr><td><svg class="picon" viewBox="0 0 24 24" width="13" height="13"><use href="#icon-router"/></svg> <b>Router</b></td><td>2 BW</td><td>Expands territory one hex; Datacenters need 2 adjacent.</td></tr>
+          <tr><td><svg class="picon" viewBox="0 0 24 24" width="13" height="13"><use href="#icon-switch"/></svg> <b>Switch</b></td><td>1 BW</td><td>Glue — needs 2+ adjacent friendly pieces; doesn't expand alone.</td></tr>
+          <tr><td><svg class="picon" viewBox="0 0 24 24" width="13" height="13"><use href="#icon-ap"/></svg> <b>Wireless AP</b></td><td>3 BW</td><td>Reaches 1 hex beyond in a line (jumped hex not claimed).</td></tr>
+          <tr><td><svg class="picon" viewBox="0 0 24 24" width="13" height="13"><use href="#icon-firewall"/></svg> <b>Firewall</b></td><td>2 BW</td><td>Placed on a piece you own; absorbs one Hack, then is spent.</td></tr>
+          <tr><td><svg class="picon" viewBox="0 0 24 24" width="13" height="13"><use href="#icon-server"/></svg> <b>Server</b></td><td>3 BW</td><td>Online with 2 adjacent Routers; connects an adjacent City.</td></tr>
+          <tr><td><svg class="picon" viewBox="0 0 24 24" width="13" height="13"><use href="#icon-dc"/></svg> <b>Datacenter</b></td><td>6 BW</td><td>Your engine of victory — online (1 token) while adjacent to 2+ Routers and connected to a Server.</td></tr></table>
+        <h3>Scoring</h3>
+        <p>Checked at the end of every turn:</p>
+        <table><tr><th>Source</th><th>AI tokens</th></tr>
+          <tr><td>Each online Datacenter</td><td>1</td></tr>
+          <tr><td>Each City connected to your network</td><td>1</td></tr>
+          <tr><td>Two+ of your Datacenters linked through your network (once)</td><td>+2 bonus</td></tr></table>
+        <div class="call">Losing your only networked Server takes <b>every</b> Datacenter offline at once — usually the more dangerous hack than a single City.</div>
+        <h3>Winning</h3>
+        <p>End a turn with <b>{{ targetVp }}+ AI tokens</b> and your opponent gets exactly one more full turn to
+          catch up; then the higher total wins (ties → more connected Cities → draw). If the second player also
+          reaches the target on that closing turn, the game ends immediately (turns are already equal). Four
+          consecutive Passes (a stuck round) also ends it by the same tiebreak.</p>
+        <h3>Strategy tips</h3>
+        <ul>
+          <li>Routers grab ground fast but stretch you thin — a long unprotected spine is easy to Hack at the joints; Switches/APs make a denser, harder-to-cut core.</li>
+          <li>Firewall the pieces whose loss hurts most (the Server feeding a Datacenter, or a single link holding two halves together) — not whatever's nearest the front.</li>
+          <li>An unbuilt Datacenter isn't points — check the ring: it needs 2 Routers and a networked Server to earn.</li>
+          <li>The two-Datacenter <b>+2 link bonus</b> is often the sprint that ends the game — shape your network to get two DCs into one component.</li>
+          <li>Hacking is once/turn at 1 BW — a single Hack that severs a bridge is worth far more than denying one piece's income.</li>
+        </ul>
       </div>
 
       <div class="card">

@@ -105,6 +105,9 @@
   .rules ul{padding-left:18px}
   .rules li{margin:2px 0}
   .rules b{color:var(--ink)}
+  .rules table{border-collapse:collapse;width:100%;margin:4px 0 6px;font-size:12.5px}
+  .rules th,.rules td{border:1px solid #2a3147;padding:4px 7px;text-align:left;vertical-align:top}
+  .rules th{color:var(--ink);background:#141a2e}
   .rules .tile-ex{display:inline-flex;align-items:center;gap:3px;
         background:#ffffff12;border-radius:4px;padding:1px 6px;font-size:12px}
   .rules .tile-ex .sw{width:14px;height:14px;border-radius:3px}
@@ -425,6 +428,29 @@
            Tap a green square to move. The AI plays the other side automatically.</p>
         <p>Each stone's icon shows the move it currently has (from its tile).
            The faint watermark on each tile shows which move that tile grants.</p>
+
+        <h3>Strategy tips</h3>
+        <ul>
+          <li><b>Watch the tile, not the piece</b> — the same stone is a Field-walker one move and a rook the next, purely from where it stands.</li>
+          <li><b>The Gate ignores everything in its path</b> — in cramped, piece-dense positions it's often the only stone that can reach a square this turn.</li>
+          <li>Never let the Monarch's safety rest on "they probably won't find a way in" — <b>Regicide ends the game outright</b>, no matter your material lead.</li>
+          <li><b>Coronation</b> gives the opponent exactly one turn to contest a Throne you're locking down — that turn is your last chance to break the hold.</li>
+          <li>Running the enemy down to their last non-Monarch piece is just as final as capture — count remaining agents, not just position.</li>
+          <li>In <b>Fog</b>, a ghost marker is memory, not certainty — don't slide a valuable piece through a square you merely remember being empty.</li>
+        </ul>
+
+        <h3>Quick reference</h3>
+        <table><tr><th>Tile</th><th>Grants</th><th>Tile</th><th>Grants</th></tr>
+          <tr><td>• Field</td><td>step 1</td><td>♞ Gate</td><td>knight leap</td></tr>
+          <tr><td>♜ Tower</td><td>rook slide</td><td>♛ Throne</td><td>queen slide</td></tr>
+          <tr><td>♝ Spire</td><td>bishop slide</td><td colspan="2"></td></tr></table>
+        <table><tr><th>Rule</th><th>Value</th></tr>
+          <tr><td>Win conditions</td><td>Regicide, Coronation (hold all Thrones 3 plies), Elimination (bare Monarch)</td></tr>
+          <tr><td>Monarch move</td><td>always 1 step, ignores terrain</td></tr>
+          <tr><td>No legal move</td><td>draw (or by mutual agreement any time)</td></tr>
+          <tr><td>Decay chain</td><td>Tower → Spire → Gate → Field (Thrones never decay)</td></tr>
+          <tr><td>Fog sight</td><td>radius 2 (ordinary), 3 (Monarch); Thrones always visible</td></tr>
+          <tr><td>Momentum</td><td>retained rank lasts 1 extra move; not combinable with Decay/Fog</td></tr></table>
       </div>
 
       <div class="card legend" v-show="!showRules">

@@ -33,6 +33,9 @@
   svg{display:block;width:min(76vw,560px);height:auto;max-width:100%;max-height:82vh;margin:0 auto;touch-action:manipulation}
   /* Narrow/portrait phone: board fills the full width (and the turned, taller board uses the vertical space). */
   @media (max-width:640px){ .boardwrap{width:100%} svg{width:100%} }
+  .helpbtn{background:none;border:1px solid #33415f;width:30px;height:30px;border-radius:50%;color:var(--muted);font-weight:800;cursor:pointer;font-size:15px;line-height:1;flex:none}
+  .helpbtn:hover{background:#243049;color:var(--ink)}
+  .helpbtn.active{background:var(--hl);color:#06281c;border-color:transparent}
   .panel{flex:1;min-width:260px;max-width:340px;display:flex;flex-direction:column;gap:12px}
   .card{background:var(--panel);border:1px solid var(--line-c);border-radius:14px;padding:14px 16px}
   .card h2{margin:0 0 10px;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-weight:700}
@@ -66,7 +69,10 @@
 </head>
 <body>
 <div id="app" class="wrap" v-cloak>
-  <h1>HEXA-GO</h1>
+  <div class="row" style="display:flex;justify-content:space-between;align-items:flex-start">
+    <h1>HEXA-GO</h1>
+    <button :class="['helpbtn',{active:showRules}]" @click="showRules=!showRules" title="Rules &amp; help">?</button>
+  </div>
   <p class="sub">Go on an equal-edge lattice — stones on the intersections.
      <a href="./">⊞ Games</a></p>
 
@@ -181,9 +187,9 @@
         </div>
       </div>
 
-      <div class="card">
-        <details>
-          <summary>How to play</summary>
+      <div class="card rules" v-show="showRules">
+          <div class="row" style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--ink);font-size:14px">How to play HEXA-GO</b>
+            <button class="helpbtn active" @click="showRules=false" title="Close">×</button></div>
           <p>HEXA-GO is <b>Go</b> on an equal-edge lattice. Stones sit on the <b>intersections</b>;
           two points are connected (share a liberty) when an edge joins them. Pick the board:
           <b>triangular</b> gives each point 6 neighbours, <b>elongated</b> (squares + triangles) gives 5.
@@ -196,7 +202,6 @@
           your surrounded empty points + your prisoners (+ <b>{{komi}}</b> komi for White). Placed stones
           aren't counted. Most points wins. <i>Capture dead stones before passing so they count.</i></p>
           <p style="opacity:.7">The AI uses Monte-Carlo playouts — it thinks about a second per move.</p>
-        </details>
       </div>
 
       <div class="card">
@@ -244,6 +249,7 @@ createApp({
       _worker:null, _workerBad:false, _aiReq:0, _aiPending:null, _aiTimer:null, _aiWatch:null,   // off-thread AI (Web Worker)
       portrait: (typeof window!=='undefined' && window.innerWidth < 640),   // narrow screen -> turn the board to fill vertical space
       deadSet:{}, _deadSeeded:false,   // manual dead-stone corrections at game end (id -> true)
+      showRules:false,
     };
   },
   computed: {

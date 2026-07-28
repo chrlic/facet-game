@@ -1,4 +1,4 @@
-const CACHE = "octachess-v3";
+const CACHE = "octachess-v4";
 // OCTA-CHESS installs as its own PWA (scope "./octa-chess.html"). Offline-capable:
 // network-first, fall back to cache. The game is fully client-side (no /api/).
 const ASSETS = [
