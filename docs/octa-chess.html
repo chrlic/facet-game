@@ -80,6 +80,34 @@
   <p class="sub">Chess where every diagonal runs through a gate.
      <a href="./">⊞ Games</a></p>
 
+      <div class="card rules" v-show="showRules" style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--ink);font-size:14px">How to play OCTA-CHESS</b>
+            <button class="helpbtn active" @click="showRules=false" title="Close">×</button></div>
+          <p>The board is <b>64 octagons</b> (a normal 8×8 chess grid) plus <b>49 gates</b> —
+          the diamond cells sitting on every interior corner. Every diagonal runs
+          <i>octagon → gate → octagon</i>.</p>
+          <p><b>♜ Rook</b> slides orthogonally across octagons — never touches gates, exactly like chess.<br>
+          <b>♝ Bishop</b> slides diagonally and may stop on a gate. A bishop resting on a gate can
+          leave on the <i>other</i> colour — gates un-bind the bishops, but cost a tempo.<br>
+          <b>♞ Knight</b> leaps (2,1) between octagons, ignoring gates entirely — the one piece
+          immune to the board, so it's stronger here.<br>
+          <b>♛ Queen</b> moves as rook+bishop but is <i>heavy</i>: it may pass an empty gate yet
+          not stop on one, and a piece parked in a gate blocks it.<br>
+          <b>♚ King</b> steps one step: to an adjacent octagon (orthogonally, or diagonally
+          across an empty gate), or onto an adjacent gate. Roomy on an octagon, only 4 escapes on a gate.<br>
+          <b>♟ Pawn</b> pushes one octagon forward; captures diagonally along the octagon→gate→octagon
+          line — it takes a piece sitting in the forward gate, or, if that gate is empty, a piece on
+          the diagonally-forward octagon beyond it. So pawns defend each other in chains, just like chess.
+          A pawn that captures into a central gate is a permanent outpost.</p>
+          <p><b>◆ Warden</b> (optional, toggle in New game) — a gate-only piece that replaces each side's
+          queenside knight and starts on a home gate. It steps one gate at a time along gate ranks/files,
+          never touching an octagon, so it can only capture pieces that are in gates. Because rooks and
+          queens can't land on gates, <i>the Warden is immune to them</i> — only a king, bishop, knight,
+          pawn or enemy Warden can take it. Its job is to seize and hold the gate network.</p>
+          <p>Only light pieces (K, B, N, P, and the Warden) can rest in gates — heavy pieces can't cement
+          them shut. The fight is for the four central gates. Checkmate wins.</p>
+      </div>
+
   <div class="layout">
     <div class="boardwrap">
       <svg viewBox="-8 -8 816 816" @contextmenu.prevent>
@@ -203,34 +231,6 @@
             <span :class="{cur:pair.bi===sanMoves.length-1}">{{pair.b||''}}</span>
           </template>
         </div>
-      </div>
-
-      <div class="card rules" v-show="showRules">
-          <div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--ink);font-size:14px">How to play OCTA-CHESS</b>
-            <button class="helpbtn active" @click="showRules=false" title="Close">×</button></div>
-          <p>The board is <b>64 octagons</b> (a normal 8×8 chess grid) plus <b>49 gates</b> —
-          the diamond cells sitting on every interior corner. Every diagonal runs
-          <i>octagon → gate → octagon</i>.</p>
-          <p><b>♜ Rook</b> slides orthogonally across octagons — never touches gates, exactly like chess.<br>
-          <b>♝ Bishop</b> slides diagonally and may stop on a gate. A bishop resting on a gate can
-          leave on the <i>other</i> colour — gates un-bind the bishops, but cost a tempo.<br>
-          <b>♞ Knight</b> leaps (2,1) between octagons, ignoring gates entirely — the one piece
-          immune to the board, so it's stronger here.<br>
-          <b>♛ Queen</b> moves as rook+bishop but is <i>heavy</i>: it may pass an empty gate yet
-          not stop on one, and a piece parked in a gate blocks it.<br>
-          <b>♚ King</b> steps one step: to an adjacent octagon (orthogonally, or diagonally
-          across an empty gate), or onto an adjacent gate. Roomy on an octagon, only 4 escapes on a gate.<br>
-          <b>♟ Pawn</b> pushes one octagon forward; captures diagonally along the octagon→gate→octagon
-          line — it takes a piece sitting in the forward gate, or, if that gate is empty, a piece on
-          the diagonally-forward octagon beyond it. So pawns defend each other in chains, just like chess.
-          A pawn that captures into a central gate is a permanent outpost.</p>
-          <p><b>◆ Warden</b> (optional, toggle in New game) — a gate-only piece that replaces each side's
-          queenside knight and starts on a home gate. It steps one gate at a time along gate ranks/files,
-          never touching an octagon, so it can only capture pieces that are in gates. Because rooks and
-          queens can't land on gates, <i>the Warden is immune to them</i> — only a king, bishop, knight,
-          pawn or enemy Warden can take it. Its job is to seize and hold the gate network.</p>
-          <p>Only light pieces (K, B, N, P, and the Warden) can rest in gates — heavy pieces can't cement
-          them shut. The fight is for the four central gates. Checkmate wins.</p>
       </div>
 
       <div class="card">

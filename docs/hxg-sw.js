@@ -1,4 +1,4 @@
-const CACHE = "hexago-v12";
+const CACHE = "hexago-v13";
 // HEXA-GO installs as its own PWA (scope "./hexa-go.html"). Fully client-side (no /api/):
 // network-first, fall back to cache for offline play.
 const ASSETS = [

@@ -76,6 +76,23 @@
   <p class="sub">Go on an equal-edge lattice — stones on the intersections.
      <a href="./">⊞ Games</a></p>
 
+      <div class="card rules" v-show="showRules" style="margin-bottom:12px">
+          <div class="row" style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--ink);font-size:14px">How to play HEXA-GO</b>
+            <button class="helpbtn active" @click="showRules=false" title="Close">×</button></div>
+          <p>HEXA-GO is <b>Go</b> on an equal-edge lattice. Stones sit on the <b>intersections</b>;
+          two points are connected (share a liberty) when an edge joins them. Pick the board:
+          <b>triangular</b> gives each point 6 neighbours, <b>elongated</b> (squares + triangles) gives 5.
+          Black plays first; players alternate placing one stone on any empty point.</p>
+          <p><b>Capture.</b> Connected same-colour stones form a group sharing their empty-point
+          liberties. Fill a group's last liberty and it is <b>captured</b> (becomes your prisoners).
+          You may not play a stone with no liberties (<b>suicide</b>) unless it captures, and
+          <b>ko</b> forbids an immediate repeating recapture.</p>
+          <p><b>Ending &amp; scoring.</b> Two passes end the game. Score is by <b>territory</b>:
+          your surrounded empty points + your prisoners (+ <b>{{komi}}</b> komi for White). Placed stones
+          aren't counted. Most points wins. <i>Capture dead stones before passing so they count.</i></p>
+          <p style="opacity:.7">The AI uses Monte-Carlo playouts — it thinks about a second per move.</p>
+      </div>
+
   <div class="layout">
     <div class="boardwrap">
       <svg ref="svgEl" viewBox="0 0 800 800" @contextmenu.prevent>
@@ -185,23 +202,6 @@
             <button class="act" style="padding:4px 8px;font-size:12px" v-if="s.mine" @click="cancelSeek(s.id)">Cancel</button>
             <button class="act primary" style="padding:4px 8px;font-size:12px" v-else @click="acceptSeek(s.id)">Join</button></div>
         </div>
-      </div>
-
-      <div class="card rules" v-show="showRules">
-          <div class="row" style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--ink);font-size:14px">How to play HEXA-GO</b>
-            <button class="helpbtn active" @click="showRules=false" title="Close">×</button></div>
-          <p>HEXA-GO is <b>Go</b> on an equal-edge lattice. Stones sit on the <b>intersections</b>;
-          two points are connected (share a liberty) when an edge joins them. Pick the board:
-          <b>triangular</b> gives each point 6 neighbours, <b>elongated</b> (squares + triangles) gives 5.
-          Black plays first; players alternate placing one stone on any empty point.</p>
-          <p><b>Capture.</b> Connected same-colour stones form a group sharing their empty-point
-          liberties. Fill a group's last liberty and it is <b>captured</b> (becomes your prisoners).
-          You may not play a stone with no liberties (<b>suicide</b>) unless it captures, and
-          <b>ko</b> forbids an immediate repeating recapture.</p>
-          <p><b>Ending &amp; scoring.</b> Two passes end the game. Score is by <b>territory</b>:
-          your surrounded empty points + your prisoners (+ <b>{{komi}}</b> komi for White). Placed stones
-          aren't counted. Most points wins. <i>Capture dead stones before passing so they count.</i></p>
-          <p style="opacity:.7">The AI uses Monte-Carlo playouts — it thinks about a second per move.</p>
       </div>
 
       <div class="card">

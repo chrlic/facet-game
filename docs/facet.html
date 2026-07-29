@@ -194,10 +194,101 @@
 <div id="app" class="wrap">
   <div class="toast" v-if="errorMsg">{{ errorMsg }}</div>
   <div class="toast info" v-if="noticeMsg">{{ noticeMsg }}</div>
-  <h1>F A C E T</h1>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <h1>F A C E T</h1>
+    <button :class="['helpbtn',{active:showRules}]" @click="showRules=!showRules" title="Rules &amp; help">?</button>
+  </div>
   <p class="sub">Your tile grants your move. Hold both thrones — or capture the enemy monarch.
      <a href="./" style="color:var(--hl);margin-left:8px" title="All games">⊞ Games</a>
      <span v-if="adapterMode==='local'" style="opacity:.5">(offline mode)</span></p>
+
+      <div class="card rules" v-show="showRules" style="margin-bottom:12px">
+        <h3>Objective</h3>
+        <p>Win by <b>Regicide</b> (capture the enemy ♚ Monarch),
+           <b>Coronation</b> (hold <b>all</b> Throne tiles for a full round — your opponent
+           gets one chance to contest before you win),
+           or <b>Elimination</b> (capture all enemy agents, leaving a bare monarch).</p>
+        <p>The game is a <b>draw</b> if the side to move has no legal moves (stalemate),
+           or by <b>mutual agreement</b> — either side can offer a draw, and the
+           opponent may accept or decline.</p>
+
+        <h3>Terrain tiles</h3>
+        <p>A stone's move is granted by the <b>tile it stands on</b> — not by the piece itself.
+           Moving to a different tile type changes what you can do next turn.</p>
+        <ul>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--F)"></span> <b>•</b> Field</span>
+              — step 1 square in any direction (8 neighbours)</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--R)"></span> <b>♜</b> Tower</span>
+              — slide any distance horizontally or vertically (rook)</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--B)"></span> <b>♝</b> Spire</span>
+              — slide any distance diagonally (bishop)</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--N)"></span> <b>♞</b> Gate</span>
+              — leap in an L-shape, 2+1 squares (knight); jumps over pieces</li>
+          <li><span class="tile-ex"><span class="sw" style="background:var(--T)"></span> <b>♛</b> Throne</span>
+              — slide any distance in all 8 directions (queen) + win objective</li>
+        </ul>
+
+        <h3>The Monarch ♚</h3>
+        <p>Each side has one Monarch (center of the back row). The Monarch <b>ignores terrain</b>
+           — it always moves exactly 1 step in any direction, regardless of the tile
+           it stands on. Losing your Monarch loses the game.</p>
+
+        <h3>Capture</h3>
+        <p>Land on an enemy stone to capture it (remove it from the board).
+           You may <b>not</b> land on your own stones. Sliders (Tower, Spire, Throne) are
+           <b>blocked</b> by any piece in their path — they stop on or before it.
+           The Gate <b>leaps</b> over everything.</p>
+
+        <h3>Optional modes</h3>
+        <p><b>Terrain decay</b> — when a stone leaves a special tile, the tile
+           degrades one tier (Tower → Spire → Gate → Field). Thrones never decay.
+           Power is a resource: every slide spends the tile you left.</p>
+        <p><b>Fog of war</b> — you see only around your own stones
+           (radius 2, monarch radius 3). Thrones are always visible.
+           Enemy stones you spotted earlier linger as faded <b>ghosts</b> where
+           you last saw them — they may have moved since. If your slider runs
+           into a hidden enemy mid-path, you <b>bump</b>: the slide stops there
+           and captures it. The AI plays under the same fog, with the same
+           kind of memory you have.</p>
+        <p><b>Momentum</b> — a stone that leaves a special tile keeps that
+           tile's rank for <b>one more move</b>, on top of what its new tile
+           grants. The retained rank shows as a small badge on the stone (for
+           both sides — it's public information) and expires after the next
+           move. Leaving a Throne keeps the queen-slide for a move, so
+           throne raids have an exit. Not combinable with decay or fog.</p>
+
+        <h3>How to play</h3>
+        <p>Choose your side before starting: <b>white moves first</b> — first
+           move is a real advantage, so playing black is the harder game
+           (Random keeps you honest). Your stones always start at the bottom.
+           Tap/click a stone to select it — legal destinations light up green.
+           Tap a green square to move. The AI plays the other side automatically.</p>
+        <p>Each stone's icon shows the move it currently has (from its tile).
+           The faint watermark on each tile shows which move that tile grants.</p>
+
+        <h3>Strategy tips</h3>
+        <ul>
+          <li><b>Watch the tile, not the piece</b> — the same stone is a Field-walker one move and a rook the next, purely from where it stands.</li>
+          <li><b>The Gate ignores everything in its path</b> — in cramped, piece-dense positions it's often the only stone that can reach a square this turn.</li>
+          <li>Never let the Monarch's safety rest on "they probably won't find a way in" — <b>Regicide ends the game outright</b>, no matter your material lead.</li>
+          <li><b>Coronation</b> gives the opponent exactly one turn to contest a Throne you're locking down — that turn is your last chance to break the hold.</li>
+          <li>Running the enemy down to their last non-Monarch piece is just as final as capture — count remaining agents, not just position.</li>
+          <li>In <b>Fog</b>, a ghost marker is memory, not certainty — don't slide a valuable piece through a square you merely remember being empty.</li>
+        </ul>
+
+        <h3>Quick reference</h3>
+        <table><tr><th>Tile</th><th>Grants</th><th>Tile</th><th>Grants</th></tr>
+          <tr><td>• Field</td><td>step 1</td><td>♞ Gate</td><td>knight leap</td></tr>
+          <tr><td>♜ Tower</td><td>rook slide</td><td>♛ Throne</td><td>queen slide</td></tr>
+          <tr><td>♝ Spire</td><td>bishop slide</td><td colspan="2"></td></tr></table>
+        <table><tr><th>Rule</th><th>Value</th></tr>
+          <tr><td>Win conditions</td><td>Regicide, Coronation (hold all Thrones 3 plies), Elimination (bare Monarch)</td></tr>
+          <tr><td>Monarch move</td><td>always 1 step, ignores terrain</td></tr>
+          <tr><td>No legal move</td><td>draw (or by mutual agreement any time)</td></tr>
+          <tr><td>Decay chain</td><td>Tower → Spire → Gate → Field (Thrones never decay)</td></tr>
+          <tr><td>Fog sight</td><td>radius 2 (ordinary), 3 (Monarch); Thrones always visible</td></tr>
+          <tr><td>Momentum</td><td>retained rank lasts 1 extra move; not combinable with Decay/Fog</td></tr></table>
+      </div>
 
   <div class="layout">
     <div class="boardwrap">
@@ -311,7 +402,6 @@
           <button class="dlbtn" v-if="isOnline" @click="practiceOffline"
                   title="Play locally against the AI — this game won't be saved to your online archive">Practice offline</button>
           <button class="dlbtn" v-if="forcedLocal" @click="goOnline" title="Reconnect to the server">Back online</button>
-          <button :class="['helpbtn', {active:showRules}]" @click="showRules=!showRules" title="Rules &amp; help">?</button>
         </div>
         <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;margin-top:6px">
           <input type="checkbox" :checked="showCoords" @change="toggleCoords"> Show square coordinates
@@ -363,94 +453,6 @@
             </span>
           </div>
         </div>
-      </div>
-
-      <div class="card rules" v-show="showRules">
-        <h3>Objective</h3>
-        <p>Win by <b>Regicide</b> (capture the enemy ♚ Monarch),
-           <b>Coronation</b> (hold <b>all</b> Throne tiles for a full round — your opponent
-           gets one chance to contest before you win),
-           or <b>Elimination</b> (capture all enemy agents, leaving a bare monarch).</p>
-        <p>The game is a <b>draw</b> if the side to move has no legal moves (stalemate),
-           or by <b>mutual agreement</b> — either side can offer a draw, and the
-           opponent may accept or decline.</p>
-
-        <h3>Terrain tiles</h3>
-        <p>A stone's move is granted by the <b>tile it stands on</b> — not by the piece itself.
-           Moving to a different tile type changes what you can do next turn.</p>
-        <ul>
-          <li><span class="tile-ex"><span class="sw" style="background:var(--F)"></span> <b>•</b> Field</span>
-              — step 1 square in any direction (8 neighbours)</li>
-          <li><span class="tile-ex"><span class="sw" style="background:var(--R)"></span> <b>♜</b> Tower</span>
-              — slide any distance horizontally or vertically (rook)</li>
-          <li><span class="tile-ex"><span class="sw" style="background:var(--B)"></span> <b>♝</b> Spire</span>
-              — slide any distance diagonally (bishop)</li>
-          <li><span class="tile-ex"><span class="sw" style="background:var(--N)"></span> <b>♞</b> Gate</span>
-              — leap in an L-shape, 2+1 squares (knight); jumps over pieces</li>
-          <li><span class="tile-ex"><span class="sw" style="background:var(--T)"></span> <b>♛</b> Throne</span>
-              — slide any distance in all 8 directions (queen) + win objective</li>
-        </ul>
-
-        <h3>The Monarch ♚</h3>
-        <p>Each side has one Monarch (center of the back row). The Monarch <b>ignores terrain</b>
-           — it always moves exactly 1 step in any direction, regardless of the tile
-           it stands on. Losing your Monarch loses the game.</p>
-
-        <h3>Capture</h3>
-        <p>Land on an enemy stone to capture it (remove it from the board).
-           You may <b>not</b> land on your own stones. Sliders (Tower, Spire, Throne) are
-           <b>blocked</b> by any piece in their path — they stop on or before it.
-           The Gate <b>leaps</b> over everything.</p>
-
-        <h3>Optional modes</h3>
-        <p><b>Terrain decay</b> — when a stone leaves a special tile, the tile
-           degrades one tier (Tower → Spire → Gate → Field). Thrones never decay.
-           Power is a resource: every slide spends the tile you left.</p>
-        <p><b>Fog of war</b> — you see only around your own stones
-           (radius 2, monarch radius 3). Thrones are always visible.
-           Enemy stones you spotted earlier linger as faded <b>ghosts</b> where
-           you last saw them — they may have moved since. If your slider runs
-           into a hidden enemy mid-path, you <b>bump</b>: the slide stops there
-           and captures it. The AI plays under the same fog, with the same
-           kind of memory you have.</p>
-        <p><b>Momentum</b> — a stone that leaves a special tile keeps that
-           tile's rank for <b>one more move</b>, on top of what its new tile
-           grants. The retained rank shows as a small badge on the stone (for
-           both sides — it's public information) and expires after the next
-           move. Leaving a Throne keeps the queen-slide for a move, so
-           throne raids have an exit. Not combinable with decay or fog.</p>
-
-        <h3>How to play</h3>
-        <p>Choose your side before starting: <b>white moves first</b> — first
-           move is a real advantage, so playing black is the harder game
-           (Random keeps you honest). Your stones always start at the bottom.
-           Tap/click a stone to select it — legal destinations light up green.
-           Tap a green square to move. The AI plays the other side automatically.</p>
-        <p>Each stone's icon shows the move it currently has (from its tile).
-           The faint watermark on each tile shows which move that tile grants.</p>
-
-        <h3>Strategy tips</h3>
-        <ul>
-          <li><b>Watch the tile, not the piece</b> — the same stone is a Field-walker one move and a rook the next, purely from where it stands.</li>
-          <li><b>The Gate ignores everything in its path</b> — in cramped, piece-dense positions it's often the only stone that can reach a square this turn.</li>
-          <li>Never let the Monarch's safety rest on "they probably won't find a way in" — <b>Regicide ends the game outright</b>, no matter your material lead.</li>
-          <li><b>Coronation</b> gives the opponent exactly one turn to contest a Throne you're locking down — that turn is your last chance to break the hold.</li>
-          <li>Running the enemy down to their last non-Monarch piece is just as final as capture — count remaining agents, not just position.</li>
-          <li>In <b>Fog</b>, a ghost marker is memory, not certainty — don't slide a valuable piece through a square you merely remember being empty.</li>
-        </ul>
-
-        <h3>Quick reference</h3>
-        <table><tr><th>Tile</th><th>Grants</th><th>Tile</th><th>Grants</th></tr>
-          <tr><td>• Field</td><td>step 1</td><td>♞ Gate</td><td>knight leap</td></tr>
-          <tr><td>♜ Tower</td><td>rook slide</td><td>♛ Throne</td><td>queen slide</td></tr>
-          <tr><td>♝ Spire</td><td>bishop slide</td><td colspan="2"></td></tr></table>
-        <table><tr><th>Rule</th><th>Value</th></tr>
-          <tr><td>Win conditions</td><td>Regicide, Coronation (hold all Thrones 3 plies), Elimination (bare Monarch)</td></tr>
-          <tr><td>Monarch move</td><td>always 1 step, ignores terrain</td></tr>
-          <tr><td>No legal move</td><td>draw (or by mutual agreement any time)</td></tr>
-          <tr><td>Decay chain</td><td>Tower → Spire → Gate → Field (Thrones never decay)</td></tr>
-          <tr><td>Fog sight</td><td>radius 2 (ordinary), 3 (Monarch); Thrones always visible</td></tr>
-          <tr><td>Momentum</td><td>retained rank lasts 1 extra move; not combinable with Decay/Fog</td></tr></table>
       </div>
 
       <div class="card legend" v-show="!showRules">

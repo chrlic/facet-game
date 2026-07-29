@@ -1,4 +1,4 @@
-const CACHE = "facet-v5";
+const CACHE = "facet-v6";
 const ASSETS = [
   "./facet.html",
   "./vue.global.prod.js",
