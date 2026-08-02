@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0f1320" />
+<title>CONDUIT — prototype</title>
+<script src="conduit_engine.js"></script>
+<script src="vue.global.prod.js"></script>
+<style>
+  :root{--bg:#0f1320;--panel:#171c2e;--ink:#e7ecf5;--muted:#8b95ad;--line:#2a3147;
+        --you:#5be0a8;--ai:#7aa2ff;--ex:#d9b45b;--cut:#e0655b;--hl:#d9b45b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:1120px;margin:0 auto;padding:16px}
+  h1{font-weight:800;letter-spacing:5px;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 12px;font-size:13px}
+  .sub a{color:var(--hl);text-decoration:none;margin-left:6px}
+  .banner{background:var(--panel);border-radius:10px;padding:9px 12px;font-size:14px;margin-bottom:10px;
+          display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+  .banner b{color:var(--ink)} .pill{font-weight:700;white-space:nowrap}
+  .layout{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .boardwrap{background:var(--panel);padding:10px;border-radius:14px;box-shadow:0 10px 40px #0008;max-width:100%;min-width:0;flex:1}
+  .side{flex:0 0 300px;max-width:340px;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .card h2{margin:0 0 9px;font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-weight:700}
+  svg{display:block;width:100%;height:auto;touch-action:manipulation}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{background:#243049;color:var(--ink);border:1px solid #33415f;padding:8px 12px;border-radius:9px;cursor:pointer;font-weight:600;font-size:13px}
+  button:hover{background:#2c3a58} button:disabled{opacity:.4;cursor:default}
+  button.primary{background:var(--you);color:#06281c;border-color:transparent}
+  button.tool.on{outline:2px solid var(--hl);background:#2c3a58}
+  .cost{font-size:11px;color:var(--muted)}
+  .statline{display:flex;justify-content:space-between;font-size:13px;margin:3px 0}
+  .big{font-size:22px;font-weight:800}
+  .leg{font-size:11.5px;color:var(--muted);line-height:1.8}
+  .sw{display:inline-block;width:22px;height:0;border-top-width:3px;border-top-style:solid;vertical-align:3px;margin-right:5px}
+  .over{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;z-index:20}
+  .over .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 26px;text-align:center;max-width:340px}
+  .think{color:var(--hl);font-size:13px;font-weight:600}
+  .hint{color:var(--muted);font-size:12.5px;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="app" class="wrap" v-cloak>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <h1>CONDUIT</h1>
+    <span class="cost" style="align-self:center">prototype · offline</span>
+  </div>
+  <p class="sub">Lay fiber from your PoP to the exchanges. You're paid for the bandwidth you deliver — which
+     equals your network's <b style="color:var(--cut)">min-cut</b>. Widen your bottleneck; sever theirs. <a href="./">⊞ Games</a></p>
+
+  <div class="banner">
+    <span class="pill">Day <b>{{ g.tick+1 > g.ticks ? g.ticks : g.tick+1 }}</b>/{{ g.ticks }}</span>
+    <span class="pill">Actions left <b :style="{color:actionsLeft?'var(--you)':'var(--muted)'}">{{ actionsLeft }}</b></span>
+    <span class="pill">💳 <b>${{ g.credit[0] }}</b></span>
+    <span class="pill">Throughput now <b style="color:var(--you)">{{ preview.thr[0] }}</b> · <b style="color:var(--ai)">{{ preview.thr[1] }}</b> AI</span>
+    <span class="pill">Revenue <b style="color:var(--you)">{{ g.revenue[0] }}</b> · <b style="color:var(--ai)">{{ g.revenue[1] }}</b> AI</span>
+    <span class="pill" v-if="myCut.length" style="color:var(--cut)">⚠ {{ myCut.length }} exposed link{{ myCut.length===1?'':'s' }}</span>
+    <span class="pill" v-else-if="preview.thr[0]" style="color:var(--you)">✓ cut-resilient</span>
+  </div>
+
+  <div class="layout">
+    <div class="boardwrap">
+      <svg viewBox="0 0 820 660" @contextmenu.prevent>
+        <!-- faint conduit grid (all adjacencies = buildable routes) -->
+        <line v-for="e in board.edges" :key="'g'+e.key" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2"
+              stroke="#2a3147" stroke-width="2" opacity="0.6" pointer-events="none"/>
+        <!-- YOUR min-cut = the danger line: a WIDE red halo behind the bottleneck link(s) so it's obvious -->
+        <line v-for="e in myCut" :key="'ch'+e" v-bind="edgeXY(e)"
+              stroke="#e0655b" stroke-width="17" stroke-linecap="round" opacity="0.45" pointer-events="none">
+          <animate attributeName="opacity" values="0.55;0.18;0.55" dur="1.3s" repeatCount="indefinite"/>
+        </line>
+        <!-- built links (both players), thickness = capacity (thin = low capacity = your weak point) -->
+        <line v-for="l in builtLinks" :key="'l'+l.key" :x1="l.x1" :y1="l.y1" :x2="l.x2" :y2="l.y2"
+              :stroke="l.owner===0?'#5be0a8':'#7aa2ff'" :stroke-width="l.cap*4"
+              stroke-linecap="round" :opacity="l.throttled?0.4:0.95" pointer-events="none"/>
+        <!-- bright red core on the cut, on top, so the bottleneck link reads red even where fiber overlays it -->
+        <line v-for="e in myCut" :key="'cc'+e" v-bind="edgeXY(e)"
+              stroke="#ff6f5e" stroke-width="3" stroke-dasharray="2,5" stroke-linecap="round" opacity="0.95" pointer-events="none"/>
+        <!-- clickable action targets for the active tool -->
+        <line v-for="e in toolEdges" :key="'t'+e.key" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2"
+              :stroke="e.color" stroke-width="16" stroke-linecap="round" opacity="0.001"
+              style="cursor:pointer" @click="doAction(e.key)"/>
+        <line v-for="e in toolEdges" :key="'th'+e.key" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2"
+              :stroke="e.color" :stroke-width="tool==='build'?3:4" stroke-dasharray="4,4" opacity="0.8" pointer-events="none"/>
+        <!-- nodes (display only — never intercept edge clicks) -->
+        <g v-for="c in board.cells" :key="'n'+c.key" pointer-events="none">
+          <circle :cx="c.x" :cy="c.y" :r="c.ex?15:(c.src!=null?13:4.5)"
+                  :fill="c.src===0?'#5be0a8':c.src===1?'#7aa2ff':c.ex?'#d9b45b':'#39415a'"
+                  :stroke="c.ex?'#8a6a20':'none'" stroke-width="1.5"/>
+          <text v-if="c.src!=null" :x="c.x" :y="c.y+4" text-anchor="middle" font-size="10" font-weight="800" fill="#06281c">{{ c.src===0?'YOU':'AI' }}</text>
+          <text v-if="c.ex" :x="c.x" :y="c.y+4" text-anchor="middle" font-size="12" font-weight="800" fill="#241d06">{{ c.dem }}</text>
+          <text v-if="c.ex" :x="c.x" :y="c.y-20" text-anchor="middle" font-size="10" fill="var(--muted)">
+            {{ (preview.split[c.key]||[0,0])[0] }}·<tspan fill="var(--ai)">{{ (preview.split[c.key]||[0,0])[1] }}</tspan></text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <h2>Your turn</h2>
+        <div class="row">
+          <button class="tool" :class="{on:tool==='build'}" :disabled="!actionsLeft||over||!afford('build')" @click="pick('build')">Lay fiber <span class="cost">$3</span></button>
+          <button class="tool" :class="{on:tool==='upgrade'}" :disabled="!actionsLeft||over||!afford('upgrade')||!hasUpgrades" @click="pick('upgrade')">Upgrade <span class="cost">$2</span></button>
+          <button class="tool" :class="{on:tool==='cut'}" :disabled="!actionsLeft||over||!afford('interdict')||!hasCuts" @click="pick('cut')">Cut <span class="cost">$3</span></button>
+        </div>
+        <div class="hint" style="margin-top:8px">{{ hint }}</div>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" :disabled="over||thinking" @click="endTurn">End day →</button>
+          <button @click="reset">New game</button>
+        </div>
+        <div v-if="thinking" class="think" style="margin-top:8px">◉ AI is routing…</div>
+      </div>
+
+      <div class="card">
+        <h2>Delivered bandwidth</h2>
+        <div class="statline"><span><span class="sw" style="border-color:var(--you)"></span>You</span><span class="big" style="color:var(--you)">{{ preview.thr[0] }}</span></div>
+        <div class="statline"><span><span class="sw" style="border-color:var(--ai)"></span>AI</span><span class="big" style="color:var(--ai)">{{ preview.thr[1] }}</span></div>
+        <div class="hint" style="margin-top:6px" :style="{color:myCut.length?'var(--cut)':(preview.thr[0]?'var(--you)':'var(--muted)')}">
+          {{ myCut.length ? 'The red links are exposed — a single Cut on any one costs you bandwidth. Add a parallel route (or upgrade) so your flow survives a cut.' : (preview.thr[0] ? 'Cut-resilient — no single Cut can dent your delivery. Now push for more throughput.' : 'Build a path to an exchange to start earning.') }}</div>
+      </div>
+
+      <div class="card">
+        <h2>Legend</h2>
+        <div class="leg">
+          <div><span class="sw" style="border-color:var(--you)"></span> your fiber (thicker = more capacity)</div>
+          <div><span class="sw" style="border-color:var(--ai)"></span> AI fiber</div>
+          <div><span class="sw" style="border-color:var(--cut);border-top-style:dashed"></span> <b style="color:var(--cut)">exposed</b> links — a Cut on any costs you bandwidth</div>
+          <div>🟡 exchange (number = demand; split shows you·AI)</div>
+          <div class="hint" style="margin-top:6px">Score = total bandwidth delivered over {{ g.ticks }} days. Most wins.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Report / share state</h2>
+        <textarea v-model="bugNote" rows="2" placeholder="What looks wrong (e.g. the bottleneck marking)?"
+                  style="width:100%;resize:vertical;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:8px;font-size:13px;font-family:inherit"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button @click="downloadState">Download board state</button>
+        </div>
+        <div class="hint" style="margin-top:6px">{{ bugMsg || 'Bundles the exact board (links, capacities, throughput, exposed set) so I can reproduce it.' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="over" v-if="over">
+    <div class="box">
+      <div class="big" :style="{color:winner==='you'?'var(--you)':winner==='ai'?'var(--ai)':'var(--muted)'}">
+        {{ winner==='you'?'You win 🏆':winner==='ai'?'AI wins':'Draw' }}</div>
+      <div class="hint" style="margin:8px 0 14px">Delivered {{ g.revenue[0] }} vs {{ g.revenue[1] }} bandwidth-units over {{ g.ticks }} days.</div>
+      <button class="primary" @click="reset">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const C = window.CONDUIT;
+const R = 3;
+Vue.createApp({
+  data(){ return { g:C.newGame(R), tool:null, actionsLeft:3, thinking:false, over:false, winner:null,
+                   preview:{thr:[0,0],split:{},cut:[[],[]]}, danger:[], _cellXY:{}, bugNote:'', bugMsg:null }; },
+  computed:{
+    board(){
+      const cells = this.g.sc.cells, ex={}, src={};
+      this.g.sc.sinks.forEach(s=>ex[s.cell]=s.dem);
+      src[this.g.sc.src[0]]=0; src[this.g.sc.src[1]]=1;
+      const size=52, pts=cells.map(k=>{const [q,r]=k.split(",").map(Number);
+        return {key:k,q,r,px:size*Math.sqrt(3)*(q+r/2),py:size*1.5*r};});
+      let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; pts.forEach(p=>{x0=Math.min(x0,p.px);y0=Math.min(y0,p.py);x1=Math.max(x1,p.px);y1=Math.max(y1,p.py);});
+      const PAD=40, W=820, H=660, sc=Math.min((W-2*PAD)/(x1-x0),(H-2*PAD)/(y1-y0));
+      const ox=(W-(x1-x0)*sc)/2, oy=(H-(y1-y0)*sc)/2, xy={};
+      const out = pts.map(p=>{const x=(p.px-x0)*sc+ox, y=(p.py-y0)*sc+oy; xy[p.key]={x,y};
+        return {key:p.key,x,y,src:p.key in src?src[p.key]:null,ex:p.key in ex,dem:ex[p.key]};});
+      this._cellXY=xy;
+      // adjacency edges (dedup)
+      const seen={}, edges=[]; const adj=this.g.sc.adj;
+      for(const c in adj) adj[c].forEach(nb=>{const e=C.edge(c,nb); if(!seen[e]){seen[e]=1;
+        edges.push({key:e,x1:xy[c].x,y1:xy[c].y,x2:xy[nb].x,y2:xy[nb].y});}});
+      return {cells:out, edges, scale:sc};
+    },
+    builtLinks(){
+      const out=[]; for(let p=0;p<2;p++){const L=this.g.links[p];
+        for(const e in L){const uv=C.ends(e), a=this._cellXY[uv[0]], b=this._cellXY[uv[1]];
+          out.push({key:p+e,owner:p,cap:L[e],x1:a.x,y1:a.y,x2:b.x,y2:b.y,
+                    throttled:(p+"@"+e) in this.g.throttle});}}
+      return out;
+    },
+    myCut(){ return this.danger||[]; },
+    hasUpgrades(){ return C.legalUpgrades(this.g,0).length>0; },
+    hasCuts(){ return C.legalInterdicts(this.g,0).length>0; },
+    toolEdges(){
+      if(!this.actionsLeft||this.over||!this.tool) return [];
+      const kind = this.tool==='cut'?'interdict':this.tool;
+      if(!C.canAfford(this.g,0,kind)) return [];               // don't glow what you can't pay for
+      let keys=[], color;
+      if(this.tool==='build'){ keys=C.legalBuilds(this.g,0); color='var(--you)'; }
+      else if(this.tool==='upgrade'){ keys=C.legalUpgrades(this.g,0); color='var(--ex)'; }
+      else if(this.tool==='cut'){ keys=C.legalInterdicts(this.g,0); color='var(--cut)'; }
+      return keys.map(e=>{const uv=C.ends(e), a=this._cellXY[uv[0]], b=this._cellXY[uv[1]];
+        return {key:e,x1:a.x,y1:a.y,x2:b.x,y2:b.y,color};});
+    },
+    hint(){
+      if(this.over) return 'Game over.';
+      if(!this.actionsLeft) return 'No actions left — end the day.';
+      const kind = this.tool==='cut'?'interdict':this.tool;
+      if(this.tool && !C.canAfford(this.g,0,kind)) return 'Not enough credit ($'+this.g.credit[0]+') for that — end the day to earn more.';
+      if(this.tool==='build') return 'Click a highlighted route to lay fiber (capacity 1) toward an exchange.';
+      if(this.tool==='upgrade') return 'Click one of your links to add +1 capacity.';
+      if(this.tool==='cut') return 'Click an enemy link next to your network to throttle it for a few days.';
+      return 'Pick a tool. Get a path to an exchange, then widen your bottleneck.';
+    }
+  },
+  methods:{
+    afford(kind){ return C.canAfford(this.g,0,kind); },
+    edgeXY(e){ const uv=C.ends(e), a=this._cellXY[uv[0]], b=this._cellXY[uv[1]]; return {x1:a.x,y1:a.y,x2:b.x,y2:b.y}; },
+    recompute(){ this.preview = C.resolve(this.g); this.danger = C.dangerLinks(this.g, 0); },
+    pick(t){ this.tool = this.tool===t ? null : t; },
+    doAction(e){
+      if(!this.actionsLeft||this.over||!this.tool) return;
+      const kind = this.tool==='cut' ? 'interdict' : this.tool;
+      if(!C.canAfford(this.g,0,kind)) return;
+      if(C.apply(this.g,0,kind,e)){ this.actionsLeft--; this.recompute(); this.$forceUpdate();
+        if(!this.actionsLeft){ this.tool=null; this.endTurn(); } }   // out of actions -> AI plays automatically
+    },
+    endTurn(){
+      if(this.over) return;
+      this.thinking=true; this.tool=null;
+      setTimeout(()=>{
+        C.aiTurn(this.g,1);
+        const r=C.resolve(this.g); C.tickIncome(this.g,r.thr); this.g.tick++;
+        this.recompute();
+        this.thinking=false; this.actionsLeft=3;
+        if(this.g.tick>=this.g.ticks){ this.over=true;
+          this.winner = this.g.revenue[0]>this.g.revenue[1]?'you':this.g.revenue[1]>this.g.revenue[0]?'ai':'draw'; }
+        this.$forceUpdate();
+      }, 220);
+    },
+    reset(){ this.g=C.newGame(R); this.tool=null; this.actionsLeft=3; this.over=false; this.winner=null; this.bugMsg=null; this.recompute(); },
+    // bug report: bundle the EXACT board state so a wrong-looking bottleneck can be reproduced
+    downloadState(){
+      const rep = { game:'conduit', ts:new Date().toISOString(), note:(this.bugNote||'').trim(),
+        radius:R, day:this.g.tick, ticks:this.g.ticks, actionsLeft:this.actionsLeft,
+        src:this.g.sc.src, sinks:this.g.sc.sinks,
+        links:this.g.links, throttle:this.g.throttle, credit:this.g.credit, revenue:this.g.revenue,
+        throughput:this.preview.thr, splits:this.preview.split, dangerSet:this.danger };
+      const blob = new Blob([JSON.stringify(rep,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = 'conduit-report-'+Date.now()+'.json'; document.body.appendChild(a); a.click();
+      a.remove(); URL.revokeObjectURL(url);
+      this.bugMsg = 'Downloaded — share the file and I can reproduce this exact board.';
+    }
+  },
+  mounted(){ this.recompute(); }
+}).mount('#app');
+</script>
+</body>
+</html>
