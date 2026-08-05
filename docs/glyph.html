@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0f1320" />
+<title>SOKO-SENSEI — warehouse warrior</title>
+<script src="glyph_engine.js"></script>
+<script src="vue.global.prod.js"></script>
+<style>
+  :root{--bg:#0f1320;--panel:#171c2e;--ink:#e7ecf5;--muted:#8b95ad;--line:#2a3147;
+        --you:#5be0a8;--ai:#7aa2ff;--crate:#c8a86a;--crate2:#8a7448;--wall:#3a4468;--walledge:#8f9cd0;--floor:#0e1424;--slot:#2a2140;--hl:#d9b45b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:1000px;margin:0 auto;padding:16px}
+  [v-cloak]{display:none}
+  h1{font-weight:800;letter-spacing:6px;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 12px;font-size:13px}
+  .sub a{color:var(--hl);text-decoration:none;margin-left:6px}
+  .banner{background:var(--panel);border-radius:10px;padding:9px 12px;font-size:14px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+  .banner b{color:var(--ink)} .pill{font-weight:700;white-space:nowrap}
+  .layout{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .boardwrap{background:var(--panel);padding:12px;border-radius:14px;box-shadow:0 10px 40px #0008;max-width:100%;min-width:0;flex:1}
+  .side{flex:0 0 260px;max-width:320px;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .card h2{margin:0 0 9px;font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-weight:700}
+  svg{display:block;width:100%;height:auto;max-height:68vh;touch-action:manipulation}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{background:#243049;color:var(--ink);border:1px solid #33415f;padding:8px 12px;border-radius:9px;cursor:pointer;font-weight:600;font-size:13px}
+  button:hover{background:#2c3a58} button:disabled{opacity:.4;cursor:default}
+  button.primary{background:var(--you);color:#06281c;border-color:transparent}
+  .statline{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:6px 0}
+  .pips{display:flex;gap:5px}
+  .pip{width:16px;height:16px;border-radius:5px;background:#0c1020;border:1px solid #2a3147}
+  .big{font-size:20px;font-weight:800}
+  .dpad{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:6px;justify-content:center;margin-top:4px}
+  .dpad button{padding:0;font-size:18px}
+  .dpad button.rep{border-color:var(--hl);color:var(--hl);opacity:.55}
+  .think{color:var(--hl);font-size:13px;font-weight:600}
+  .leg{font-size:11.5px;color:var(--muted);line-height:1.7}
+  .over{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;z-index:20}
+  .over .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 26px;text-align:center;max-width:320px}
+</style>
+</head>
+<body>
+<div id="app" class="wrap" v-cloak tabindex="0" @keydown="onKey">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <h1 style="letter-spacing:4px">SOKO-SENSEI</h1><span style="color:var(--muted);font-size:12px;align-self:center">warehouse warrior · offline</span>
+  </div>
+  <p class="sub">Maneuver glyph-crates across the warehouse onto the goal slots. Push a <b>matching</b> crate onto a
+     slot and you <b>claim</b> it — it locks there for good. <b>First to claim 2 of the 3 slots wins.</b> <a href="./">⊞ Games</a></p>
+
+  <div class="banner">
+    <span class="pill" :style="{color:turn===0?'var(--you)':'var(--muted)'}">{{ statusText }}</span>
+    <span class="pill">Claims <b style="color:var(--you)">{{ heldYou }}</b> · <b style="color:var(--ai)">{{ heldAi }}</b> AI <span style="color:var(--muted)">/ {{ need }} to win</span></span>
+    <span class="pill" style="color:var(--muted)">{{ first===0?'You moved first':'AI moved first' }}</span>
+  </div>
+
+  <div class="layout">
+    <div class="boardwrap">
+      <svg ref="board" viewBox="0 0 638 638">
+        <!-- floor / tile-thick walls -->
+        <rect v-for="c in cells" :key="'c'+c.k" :x="c.x*CELL" :y="c.y*CELL" :width="CELL" :height="CELL"
+              :fill="c.wall?'var(--wall)':'var(--floor)'" :stroke="c.wall?'#525e8a':'#131b30'" stroke-width="1.5"/>
+        <!-- wall-edges (Quoridor-style): bright bars sitting on the lines between cells -->
+        <line v-for="w in edgeWalls" :key="'e'+w.k" :x1="w.x1" :y1="w.y1" :x2="w.x2" :y2="w.y2"
+              stroke="var(--walledge)" stroke-width="6" stroke-linecap="round"/>
+        <!-- altar slots: required glyph faint, ring shows who has claimed it -->
+        <g v-for="s in slotView" :key="'s'+s.i">
+          <rect :x="s.x*CELL+3" :y="s.y*CELL+3" :width="CELL-6" :height="CELL-6" rx="7"
+                fill="var(--slot)" :stroke="s.owner===0?'var(--you)':s.owner===1?'var(--ai)':'#4a3f66'" :stroke-width="s.owner>=0?3.5:2"/>
+          <g :transform="'translate('+(s.x*CELL+CELL/2)+','+(s.y*CELL+CELL/2)+')'" opacity="0.4">
+            <circle v-if="generic" r="6" fill="#b9a9e0"/>
+            <polygon v-else-if="s.g===0" points="0,-13 12,10 -12,10" fill="#b9a9e0"/>
+            <circle v-else-if="s.g===1" r="12" fill="#b9a9e0"/>
+            <rect v-else x="-11" y="-11" width="22" height="22" fill="#b9a9e0"/>
+          </g>
+        </g>
+        <!-- crates: neutral while loose; locked into their owner's colour once claimed -->
+        <g v-for="cr in crateView" :key="'k'+cr.k">
+          <rect :x="cr.x*CELL+6" :y="cr.y*CELL+6" :width="CELL-12" :height="CELL-12" rx="6"
+                :fill="cr.held===0?'#2e6b52':cr.held===1?'#2f4a86':'var(--crate)'" :stroke="cr.held===0?'var(--you)':cr.held===1?'var(--ai)':'var(--crate2)'" stroke-width="2.5"/>
+          <g v-if="!generic" :transform="'translate('+(cr.x*CELL+CELL/2)+','+(cr.y*CELL+CELL/2)+')'">
+            <polygon v-if="cr.g===0" points="0,-13 12,10 -12,10" :fill="cr.held>=0?'#eaf3ee':'#3a2f16'"/>
+            <circle v-else-if="cr.g===1" r="12" :fill="cr.held>=0?'#eaf3ee':'#3a2f16'"/>
+            <rect v-else x="-11" y="-11" width="22" height="22" :fill="cr.held>=0?'#eaf3ee':'#3a2f16'"/>
+          </g>
+        </g>
+        <!-- pawns -->
+        <circle v-for="(p,i) in g.pawns" :key="'p'+i" :cx="p.x*CELL+CELL/2" :cy="p.y*CELL+CELL/2" :r="CELL*0.26"
+                :fill="i===0?'var(--you)':'var(--ai)'" stroke="#0b0f1c" stroke-width="2.5"/>
+        <text v-for="(p,i) in g.pawns" :key="'pt'+i" :x="p.x*CELL+CELL/2" :y="p.y*CELL+CELL/2+4" text-anchor="middle"
+              font-size="12" font-weight="800" fill="#06281c">{{ i===0?'YOU':'AI' }}</text>
+      </svg>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <h2>Race to {{ need }} of {{ totalGoals }}</h2>
+        <div class="statline"><span style="color:var(--you)">You</span><span class="big" style="color:var(--you)">{{ heldYou }}</span></div>
+        <div class="statline"><span style="color:var(--ai)">AI</span><span class="big" style="color:var(--ai)">{{ heldAi }}</span></div>
+        <div class="leg" style="margin-top:4px">Claimed goals lock permanently. First to <b>{{ need }}</b> wins; if both pass, the most claims wins.<span v-if="generic"> Any crate fits any goal here.</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Move (1 step / turn)</h2>
+        <div class="dpad">
+          <span></span><button :disabled="moveState[0]!=='ok'" :class="{rep:moveState[0]==='repeat'}" @click="move(0)">▲</button><span></span>
+          <button :disabled="moveState[2]!=='ok'" :class="{rep:moveState[2]==='repeat'}" @click="move(2)">◀</button><span></span><button :disabled="moveState[3]!=='ok'" :class="{rep:moveState[3]==='repeat'}" @click="move(3)">▶</button>
+          <span></span><button :disabled="moveState[1]!=='ok'" :class="{rep:moveState[1]==='repeat'}" @click="move(1)">▼</button><span></span>
+        </div>
+        <div class="leg" style="text-align:center;margin-top:4px">Greyed arrows hit a wall or would <b style="color:var(--hl)">repeat</b> the last position (banned).</div>
+        <div class="row" style="margin-top:8px;justify-content:center">
+          <button :disabled="!canPass" @click="pass" title="Pass — if both players pass in a row, the game ends and the most claims wins">Pass</button>
+        </div>
+        <div v-if="turn===1&&!over" class="think" style="margin-top:8px;text-align:center">◉ AI moving…</div>
+        <div class="row" style="margin-top:10px;justify-content:center">
+          <select v-model.number="mazeIdx" @change="reset" style="background:#243049;color:var(--ink);border:1px solid #33415f;padding:6px;border-radius:8px">
+            <option v-for="(m,i) in MAZES" :key="i" :value="i">{{ m.name }}</option>
+          </select>
+          <button @click="reset">New game</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>How to win</h2>
+        <div class="leg">
+          <div>🟢 you · 🔵 AI. Walk into crates to push them — a whole <b>row</b> shifts at once if the cell beyond is empty (locked crates &amp; pawns block).</div>
+          <div>Push a crate onto a goal to <b>claim</b> it. Your claims are locked to the rival — but you can still shove <b>your own</b> claimed crate off (it releases that goal), handy for clearing a path.</div>
+          <div>Crates sit <b>off to the side</b> of their goal — push one way, walk around to the next face, push again (an L). Don't shove a crate somewhere it can't come back from.</div>
+          <div>Block: race the rival to a crate, or shove a <b>loose</b> crate onto a goal to deny it.</div>
+          <div><b>Pass</b> if you're stuck — if both pass in a row the game ends and the most claims wins.</div>
+          <div style="color:var(--muted)">First move is a coin-flip each game (it's a small edge), so it evens out.</div>
+          <div style="color:var(--hl)">★ boards are <b>expert</b> — long L-routes (push out, round the corner, push in); the AI thinks a little longer.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="over" v-if="over">
+    <div class="box">
+      <div class="big" :style="{color:winner===0?'var(--you)':winner===1?'var(--ai)':'var(--muted)'}">
+        {{ winner===0?'You win 🏆':winner===1?'AI wins':'Draw' }}</div>
+      <div class="leg" style="margin:8px 0 14px">{{ heldYou }} vs {{ heldAi }} slots claimed.</div>
+      <button class="primary" @click="reset">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+const G = window.GLYPH, CELL = 58, PASS = G.PASS;
+Vue.createApp({
+  data(){ return { g:G.newGame(0), turn:0, over:false, winner:-1, thinking:false, first:0, mazeIdx:0,
+                   CELL:CELL, MAZES:G.MAZES }; },
+  computed:{
+    cells(){ const o=[]; for(let y=0;y<this.g.sc.H;y++) for(let x=0;x<this.g.sc.W;x++) o.push({k:x+','+y,x,y,wall:!!this.g.sc.walls[x+','+y]}); return o; },
+    edgeWalls(){ const C=this.CELL; return (this.g.sc.edgeRender||[]).map((e,i)=>{ const [ax,ay,bx,by]=e;
+      return bx>ax ? {k:i,x1:bx*C,y1:ay*C,x2:bx*C,y2:(ay+1)*C}         // vertical bar (cells side by side)
+                   : {k:i,x1:ax*C,y1:by*C,x2:(ax+1)*C,y2:by*C}; }); }, // horizontal bar (cells stacked)
+    slotView(){ return this.g.sc.slots.map((s,i)=>({i,x:s.x,y:s.y,g:s.g,owner:this.g.owner[i]})); },
+    crateView(){ return this.g.crates.map((c,i)=>{ const si=G.slotAt(this.g,c.x,c.y);
+      const held = (si>=0 && this.g.owner[si]>=0 && this.g.sc.slots[si].g===c.g) ? this.g.owner[si] : -1;
+      return {k:i,x:c.x,y:c.y,g:c.g,held}; }); },
+    heldYou(){ return G.owned(this.g,0); }, heldAi(){ return G.owned(this.g,1); },
+    generic(){ return !!this.g.sc.anyGlyph; },
+    totalGoals(){ return this.g.sc.slots.length; },
+    need(){ return G.majority(this.g); },
+    canPlay(){ return this.turn===0 && !this.over && !this.thinking; },
+    // per-direction status for the D-pad: 'ok' | 'wall' | 'repeat' (would recreate a past position)
+    moveState(){ const o={0:'wall',1:'wall',2:'wall',3:'wall'}; if(!this.canPlay) return o;
+      for(let d=0;d<4;d++) o[d] = !G.canMove(this.g,0,d) ? 'wall' : (G.repeats(this.g,0,d) ? 'repeat' : 'ok'); return o; },
+    canPass(){ return this.canPlay; },
+    statusText(){ return this.over ? 'Game over' : (this.turn===0 ? 'Your move — arrow keys / D-pad' : 'AI moving…'); }
+  },
+  methods:{
+    startTurn(p){ this.turn=p; this.$forceUpdate(); if(p===1){ this.thinking=true; setTimeout(()=>this.aiGo(), 240); } },
+    play(dir){                                   // shared human move (dir 0-3 or PASS)
+      if(!this.canPlay) return;
+      if(dir!==PASS && (!G.canMove(this.g,0,dir) || G.repeats(this.g,0,dir))) return;  // no walls, no repeats
+      const r = G.apply(this.g,0,dir); G.remember(this.g); this.$forceUpdate();
+      if(r.over) return this.end(r.won);
+      this.startTurn(1);
+    },
+    move(dir){ this.play(dir); },
+    pass(){ this.play(PASS); },
+    aiGo(){
+      const d = G.aiMove(this.g,1,this.g.sc.aiDepth||6);
+      const r = G.apply(this.g,1,d); G.remember(this.g); this.thinking=false; this.$forceUpdate();
+      if(r.over) return this.end(r.won);
+      this.startTurn(0);
+    },
+    end(w){ this.over=true; this.winner=w; this.turn=-1; this.thinking=false; this.$forceUpdate(); },
+    applyViewBox(){ if(this.$refs.board) this.$refs.board.setAttribute('viewBox','0 0 '+(this.g.sc.W*CELL)+' '+(this.g.sc.H*CELL)); },
+    onKey(e){ const m={ArrowUp:0,ArrowDown:1,ArrowLeft:2,ArrowRight:3}; if(m[e.key]!=null){ e.preventDefault(); this.move(m[e.key]); } },
+    reset(){ this.g=G.newGame(this.mazeIdx); this.over=false; this.winner=-1; this.thinking=false;
+             this.first = Math.random()<0.5 ? 0 : 1; this.$nextTick(()=>this.applyViewBox()); this.startTurn(this.first); }
+  },
+  mounted(){ this.$el.focus(); this.first = Math.random()<0.5 ? 0 : 1; this.$nextTick(()=>this.applyViewBox()); this.startTurn(this.first); }
+}).mount('#app');
+})();
+</script>
+</body>
+</html>

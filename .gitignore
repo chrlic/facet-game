@@ -21,3 +21,4 @@ net/spc/it*.jsonl
 net/spc/duel.log
 net/spc/it1*.json
 TODO.md
+soko/**
