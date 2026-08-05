@@ -1,4 +1,4 @@
-const CACHE = "games-hub-v2";
+const CACHE = "games-hub-v3";
 // The hub PWA (scope "./") caches the whole suite so every game works offline
 // once installed. Each game also ships its own SW for individual installs.
 const ASSETS = [
@@ -8,7 +8,8 @@ const ASSETS = [
   "./backbone.html", "./backbone_engine.js", "./manifest-backbone.json", "./bb-icon-192.png", "./bb-icon-512.png",
   "./hyperscale.html", "./hyperscale_engine.js", "./manifest-hyperscale.json", "./hs-icon-192.png", "./hs-icon-512.png",
   "./octa-chess.html", "./octachess_engine.js", "./manifest-octa-chess.json", "./ocx-icon-192.png", "./ocx-icon-512.png",
-  "./hexa-go.html", "./hexago_engine.js", "./manifest-hexa-go.json", "./hxg-icon-192.png", "./hxg-icon-512.png"
+  "./hexa-go.html", "./hexago_engine.js", "./manifest-hexa-go.json", "./hxg-icon-192.png", "./hxg-icon-512.png",
+  "./soko-sensei.html", "./glyph_engine.js", "./adapter.js", "./manifest-soko.json", "./soko-icon-192.png", "./soko-icon-512.png"
 ];
 
 self.addEventListener("install", e => {

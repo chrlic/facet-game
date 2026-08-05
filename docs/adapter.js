@@ -55,9 +55,10 @@ class ServerAdapter{
     return r;
   }
   async move(id,from,to){return this._fetch(`/api/v1/games/${id}/move`,{from,to});}
-  async newGameTyped(gameType,difficulty,humanSide){
-    const r=await this._fetch("/api/v1/games",
-      {game_type:gameType,difficulty,human_side:humanSide||0});
+  async newGameTyped(gameType,difficulty,humanSide,board){
+    const body={game_type:gameType,difficulty,human_side:humanSide||0};
+    if(board!==undefined&&board!==null)body.board=String(board);
+    const r=await this._fetch("/api/v1/games",body);
     if(r.game_id){r.id=r.game_id;r.human_side=r.meta.your_side;}
     return r;
   }

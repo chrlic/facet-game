@@ -17,12 +17,13 @@ import backbone_engine
 import hyperscale_engine
 import octachess_engine
 import hexago_engine
+import soko_engine
 from facet_engine import (BOARDS, CLASSIC_BOARDS, DECAY_BOARDS, FOG_BOARDS,
                           MOMENTUM_BOARDS, make_board, ai_move,
                           ai_evaluate_draw, ai_wants_draw, resolve_fog_move)
 
-GAME_TYPES = ("facet", "backbone", "hyperscale", "octachess", "hexago")
-ACTION_GAME_TYPES = ("backbone", "hyperscale", "octachess", "hexago")   # action-dict engines (vs facet's from/to moves)
+GAME_TYPES = ("facet", "backbone", "hyperscale", "octachess", "hexago", "soko")
+ACTION_GAME_TYPES = ("backbone", "hyperscale", "octachess", "hexago", "soko")   # action-dict engines (vs facet's from/to moves)
 
 DIFF = {  # difficulty -> (time_budget_seconds, max_depth)
     "easy":   (0.25, 2),
@@ -434,6 +435,10 @@ class GameHub:
             b = hexago_engine.Board()
             for m in storage.get_moves(gid):
                 b.apply(json.loads(m["data"]))
+        elif game.get("game_type") == "soko":
+            b = soko_engine.Board(game["board"])
+            for m in storage.get_moves(gid):
+                b.apply(json.loads(m["data"]))
         else:
             b = make_board(game["board"], modes=set(game["modes"]))
             for m in storage.get_moves(gid):
@@ -524,6 +529,8 @@ class GameHub:
             st = octachess_engine.serialize(board, draw_agreed=draw_agreed)
         elif game.get("game_type") == "hexago":
             st = hexago_engine.serialize(board, draw_agreed=draw_agreed)
+        elif game.get("game_type") == "soko":
+            st = soko_engine.serialize(board, draw_agreed=draw_agreed)
         else:
             st = serialize(board, draw_agreed=draw_agreed, viewer=side)
         if game["status"] == "finished":
@@ -562,6 +569,11 @@ class GameHub:
             board_id, modes = "standard", set()
             if difficulty not in hexago_engine.DIFF:
                 difficulty = "normal"
+        elif game_type == "soko":
+            board_id = str(soko_engine.board_index(board_id))   # store the maze index; any board is selectable
+            modes = set()
+            if difficulty not in soko_engine.DIFF:
+                difficulty = "normal"
         else:
             modes = validate_setup(board_id, modes)
             if difficulty not in DIFF:
@@ -577,8 +589,12 @@ class GameHub:
 
     def create_pvp_game(self, seek, accepter):
         game_type = seek.get("game_type", "facet")
+        board_id = seek["board"]
         if game_type == "octachess":
             modes = {"warden"} if "warden" in (seek["modes"] or []) else set()
+        elif game_type == "soko":
+            modes = set()
+            board_id = str(soko_engine.board_index(seek["board"]))   # normalize the chosen maze
         elif game_type in ACTION_GAME_TYPES:
             modes = set()
         else:
@@ -600,7 +616,7 @@ class GameHub:
         ids = [None, None]
         ids[seeker_side] = seeker_id
         ids[seeker_side ^ 1] = accepter["id"]
-        gid = storage.create_game(seek["board"], modes, ids[0], ids[1],
+        gid = storage.create_game(board_id, modes, ids[0], ids[1],
                                   rated=seek["rated"],
                                   move_allowance_s=MOVE_ALLOWANCE_S,
                                   game_type=game_type)
@@ -632,8 +648,17 @@ class GameHub:
             self._finish_octachess(game, board)
         elif game.get("game_type") == "hexago":
             self._finish_hexago(game, board)
+        elif game.get("game_type") == "soko":
+            self._finish_soko(game, board)
         else:
             self._finish_backbone(game, board)
+
+    def _finish_soko(self, game, board):
+        w = board.winner   # 0 / 1 (majority of goals) or "draw" (equal claims at the stop)
+        if w == "draw":
+            self.finish(game, "draw", "stalemate")
+        else:
+            self.finish(game, w, "victory")
 
     def _finish_octachess(self, game, board):
         w = board.winner   # 0 / 1 (checkmate) or "draw" (stalemate/50-move/insufficient)
@@ -664,6 +689,24 @@ class GameHub:
                             data=json.dumps(act))
         if board.winner is not None:
             self._finish_hexago(game, board)
+        self.bump(game["id"])
+        return {"move": act, "info": {"difficulty": game["ai_difficulty"], "explain": explain}}
+
+    def ai_step_soko(self, game, side):
+        board = self.board_for(game)
+        ai_side = 0 if game["white_id"] is None else 1
+        if game["status"] != "active":
+            return {"move": None}
+        if board.to_move != ai_side:
+            raise ApiError(400, "not the AI's turn")
+        act = soko_engine.ai_action(board, game["ai_difficulty"])
+        explain = soko_engine.explain_action(board, act, ai_side)
+        ply = len(storage.get_moves(game["id"]))
+        board.apply(act)
+        storage.record_move(game["id"], ply, (0, 0), (0, 0), False,
+                            data=json.dumps(act))
+        if board.winner is not None:
+            self._finish_soko(game, board)
         self.bump(game["id"])
         return {"move": act, "info": {"difficulty": game["ai_difficulty"], "explain": explain}}
 
@@ -777,6 +820,8 @@ class GameHub:
             return self.ai_step_octachess(game, side)
         if game.get("game_type") == "hexago":
             return self.ai_step_hexago(game, side)
+        if game.get("game_type") == "soko":
+            return self.ai_step_soko(game, side)
         board = self.board_for(game)
         ai_side = 0 if game["white_id"] is None else 1
         if board.to_move != ai_side:
@@ -939,6 +984,8 @@ def create_seek(player, board_id, modes, side_pref, rated, target_name,
         raise ApiError(400, "unknown game type")
     if game_type == "backbone":
         board_id, modes = "standard", set()
+    elif game_type == "soko":
+        board_id, modes = str(soko_engine.board_index(board_id)), set()   # any maze; skip FACET board validation
     else:
         modes = validate_setup(board_id, modes)
     if rated and player["is_guest"]:

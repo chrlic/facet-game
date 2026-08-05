@@ -12,7 +12,7 @@
 <title>Playground Games</title>
 <style>
   :root{--bg:#0f1320;--panel:#171c2e;--ink:#e7ecf5;--muted:#8b95ad;
-        --facet:#2f8f5b;--backbone:#7aa2ff;--hyper:#e0965b;--oct:#d9b45b;--hxg:#d8a24a}
+        --facet:#2f8f5b;--backbone:#7aa2ff;--hyper:#e0965b;--oct:#d9b45b;--hxg:#d8a24a;--soko:#5be0a8}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
        font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;min-height:100vh}
@@ -29,7 +29,7 @@
   .g-name{font-weight:800;letter-spacing:2px;font-size:20px}
   .g-desc{color:var(--muted);font-size:13px;margin-top:3px;line-height:1.45}
   .g-go{margin-left:auto;font-weight:700;font-size:22px;flex:none;opacity:.5}
-  .facet .g-name{color:var(--facet)} .backbone .g-name{color:var(--backbone)} .hyper .g-name{color:var(--hyper)} .oct .g-name{color:var(--oct)} .hxg .g-name{color:var(--hxg)}
+  .facet .g-name{color:var(--facet)} .backbone .g-name{color:var(--backbone)} .hyper .g-name{color:var(--hyper)} .oct .g-name{color:var(--oct)} .hxg .g-name{color:var(--hxg)} .soko .g-name{color:var(--soko)}
   .installbar{margin-top:22px;text-align:center}
   button{background:#243049;color:var(--ink);border:1px solid #33415f;padding:9px 16px;
          border-radius:10px;cursor:pointer;font-weight:600;font-size:14px}
@@ -95,7 +95,7 @@
           <select v-model="lbGame" @change="loadRanks">
             <option value="facet">FACET</option><option value="backbone">BACKBONE</option>
             <option value="hyperscale">HYPERSCALE</option><option value="octachess">OCTA-CHESS</option>
-            <option value="hexago">HEXA-GO</option></select></div>
+            <option value="hexago">HEXA-GO</option><option value="soko">SOKO-SENSEI</option></select></div>
         <div class="acct-note" v-if="!lbRows.length">No ranked players yet — finish a rated game to appear here.</div>
         <template v-else>
           <div class="lb-row" v-for="row in lbTop" :key="'t'+row.pos" :class="{me: row.name===myName}">
@@ -145,6 +145,12 @@
       <img src="hxg-icon-512.png" alt="">
       <div><div class="g-name">HEXA-GO</div>
         <div class="g-desc">Go on a hexagonal / triangular lattice — place stones on the intersections, capture groups, and surround territory. Vs AI or online.</div></div>
+      <div class="g-go">→</div>
+    </a>
+    <a class="game soko" href="soko-sensei.html">
+      <img src="soko-icon-512.png" alt="">
+      <div><div class="g-name">SOKO-SENSEI</div>
+        <div class="g-desc">A competitive Sokoban duel — shove crates through a symmetric warehouse onto shared goals, first to a majority wins. Vs AI or online.</div></div>
       <div class="g-go">→</div>
     </a>
   </div>

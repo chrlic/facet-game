@@ -1,0 +1,16 @@
+{
+  "name": "SOKO-SENSEI",
+  "short_name": "SOKO-SENSEI",
+  "id": "/soko-sensei.html",
+  "description": "A competitive Sokoban duel — shove crates through a symmetric warehouse onto shared goals; first to a majority wins.",
+  "start_url": "./soko-sensei.html",
+  "scope": "./soko-sensei.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1320",
+  "theme_color": "#0f1320",
+  "icons": [
+    {"src": "soko-icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "soko-icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

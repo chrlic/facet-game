@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0f1320" />
+<title>SOKO-SENSEI — warehouse warrior</title>
+<link rel="manifest" href="manifest-soko.json" />
+<link rel="icon" href="soko-favicon.png" />
+<script src="glyph_engine.js"></script>
+<script src="adapter.js"></script>
+<script src="vue.global.prod.js"></script>
+<style>
+  :root{--bg:#0f1320;--panel:#171c2e;--ink:#e7ecf5;--muted:#8b95ad;--line:#2a3147;
+        --you:#5be0a8;--ai:#7aa2ff;--crate:#c8a86a;--crate2:#8a7448;--wall:#3a4468;--walledge:#8f9cd0;--floor:#0e1424;--slot:#2a2140;--hl:#d9b45b;--chk:#ff7a7a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:1000px;margin:0 auto;padding:16px}
+  [v-cloak]{display:none}
+  h1{font-weight:800;letter-spacing:4px;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 12px;font-size:13px}
+  .sub a{color:var(--hl);text-decoration:none;margin-left:6px}
+  .banner{background:var(--panel);border-radius:10px;padding:9px 12px;font-size:14px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+  .banner b{color:var(--ink)} .pill{font-weight:700;white-space:nowrap}
+  .layout{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .boardwrap{background:var(--panel);padding:12px;border-radius:14px;box-shadow:0 10px 40px #0008;max-width:100%;min-width:0;flex:1}
+  .side{flex:0 0 260px;max-width:320px;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .card h2{margin:0 0 9px;font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-weight:700}
+  svg{display:block;width:100%;height:auto;max-height:66vh;touch-action:manipulation}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{background:#243049;color:var(--ink);border:1px solid #33415f;padding:8px 12px;border-radius:9px;cursor:pointer;font-weight:600;font-size:13px}
+  button:hover{background:#2c3a58} button:disabled{opacity:.4;cursor:default}
+  button.primary{background:var(--you);color:#06281c;border-color:transparent}
+  select{background:#243049;color:var(--ink);border:1px solid #33415f;padding:6px;border-radius:8px}
+  .seg{display:inline-flex;border:1px solid #33415f;border-radius:8px;overflow:hidden}
+  .seg button{border:0;border-radius:0;padding:6px 10px;font-size:12px;background:#1b2136}
+  .seg button.on{background:var(--you);color:#06281c}
+  .statline{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:6px 0}
+  .big{font-size:20px;font-weight:800}
+  .dpad{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:6px;justify-content:center;margin-top:4px}
+  .dpad button{padding:0;font-size:18px}
+  .dpad button.rep{border-color:var(--hl);color:var(--hl);opacity:.55}
+  .think{color:var(--hl);font-size:13px;font-weight:600}
+  .leg{font-size:11.5px;color:var(--muted);line-height:1.7}
+  .over{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;z-index:20}
+  .over .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 26px;text-align:center;max-width:320px}
+</style>
+</head>
+<body>
+<div id="app" class="wrap" v-cloak tabindex="0" @keydown="onKey">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <h1>SOKO-SENSEI</h1><span style="color:var(--muted);font-size:12px;align-self:center">warehouse warrior · <b :style="{color:isServer?'var(--you)':'var(--muted)'}">{{ isServer ? (online?(isPvp?'vs '+oppName:'online'):'online') : 'offline' }}</b></span>
+  </div>
+  <p class="sub">Maneuver crates through the warehouse onto the goals. Push a crate onto a goal to <b>claim</b> it —
+     first to a majority of goals wins. <a href="./">⊞ Games</a></p>
+
+  <div class="banner">
+    <span class="pill" :style="{color: myTurn?'var(--you)':'var(--muted)'}">{{ statusText }}</span>
+    <span class="pill">Claims <b style="color:var(--you)">{{ heldYou }}</b> · <b style="color:var(--ai)">{{ heldOpp }}</b> {{ oppName }} <span style="color:var(--muted)">/ {{ need }} to win</span></span>
+    <span class="pill" style="color:var(--muted)">{{ boardName }}</span>
+  </div>
+
+  <div class="layout">
+    <div class="boardwrap">
+      <svg ref="board" viewBox="0 0 638 638">
+        <rect v-for="c in cells" :key="'c'+c.k" :x="c.x*CELL" :y="c.y*CELL" :width="CELL" :height="CELL"
+              :fill="c.wall?'var(--wall)':'var(--floor)'" :stroke="c.wall?'#525e8a':'#131b30'" stroke-width="1.5"/>
+        <line v-for="w in edgeWalls" :key="'e'+w.k" :x1="w.x1" :y1="w.y1" :x2="w.x2" :y2="w.y2"
+              stroke="var(--walledge)" stroke-width="6" stroke-linecap="round"/>
+        <g v-for="s in slotView" :key="'s'+s.i">
+          <rect :x="s.x*CELL+3" :y="s.y*CELL+3" :width="CELL-6" :height="CELL-6" rx="7"
+                fill="var(--slot)" :stroke="s.owner===humanSide?'var(--you)':s.owner>=0?'var(--ai)':'#4a3f66'" :stroke-width="s.owner>=0?3.5:2"/>
+          <g :transform="'translate('+(s.x*CELL+CELL/2)+','+(s.y*CELL+CELL/2)+')'" opacity="0.4">
+            <circle v-if="generic" r="6" fill="#b9a9e0"/>
+            <polygon v-else-if="s.g===0" points="0,-13 12,10 -12,10" fill="#b9a9e0"/>
+            <circle v-else-if="s.g===1" r="12" fill="#b9a9e0"/>
+            <rect v-else x="-11" y="-11" width="22" height="22" fill="#b9a9e0"/>
+          </g>
+        </g>
+        <g v-for="cr in crateView" :key="'k'+cr.k">
+          <rect :x="cr.x*CELL+6" :y="cr.y*CELL+6" :width="CELL-12" :height="CELL-12" rx="6"
+                :fill="cr.held===humanSide?'#2e6b52':cr.held>=0?'#2f4a86':'var(--crate)'" :stroke="cr.held===humanSide?'var(--you)':cr.held>=0?'var(--ai)':'var(--crate2)'" stroke-width="2.5"/>
+          <g v-if="!generic" :transform="'translate('+(cr.x*CELL+CELL/2)+','+(cr.y*CELL+CELL/2)+')'">
+            <polygon v-if="cr.g===0" points="0,-13 12,10 -12,10" :fill="cr.held>=0?'#eaf3ee':'#3a2f16'"/>
+            <circle v-else-if="cr.g===1" r="12" :fill="cr.held>=0?'#eaf3ee':'#3a2f16'"/>
+            <rect v-else x="-11" y="-11" width="22" height="22" :fill="cr.held>=0?'#eaf3ee':'#3a2f16'"/>
+          </g>
+        </g>
+        <circle v-for="(p,i) in g.pawns" :key="'p'+i" :cx="p.x*CELL+CELL/2" :cy="p.y*CELL+CELL/2" :r="CELL*0.26"
+                :fill="i===humanSide?'var(--you)':'var(--ai)'" stroke="#0b0f1c" stroke-width="2.5"/>
+        <text v-for="(p,i) in g.pawns" :key="'pt'+i" :x="p.x*CELL+CELL/2" :y="p.y*CELL+CELL/2+4" text-anchor="middle"
+              font-size="11" font-weight="800" fill="#06281c">{{ i===humanSide?'YOU':oppTag }}</text>
+      </svg>
+    </div>
+
+    <div class="side">
+      <div class="card" v-if="errorMsg" style="border-color:var(--chk);color:var(--chk);font-size:13px">{{ errorMsg }}</div>
+
+      <!-- connection state — always visible so it's clear whether online play (offers / ranked) is available -->
+      <div class="card" v-if="!isServer" style="padding:10px 14px;font-size:13px">
+        <span style="color:var(--muted)">○ Offline practice — no game server detected.</span>
+        <button style="margin-left:6px;padding:5px 10px" @click="goOnline">🌐 Go online</button>
+        <div class="leg" style="margin-top:6px">Offering games, finding opponents, and ranked play need the game server. Open this page through the server (not a static/file URL), then <b>Go online</b>.</div>
+        <div class="leg" style="margin-top:6px;color:var(--hl);word-break:break-all">{{ diag }}</div>
+      </div>
+
+      <div class="card" v-if="isServer && acct" style="padding:10px 14px;font-size:13px;color:var(--muted)">
+        ● Playing as <b style="color:var(--ink)">{{ acct.name }}</b><span v-if="acct.is_guest"> · guest</span>
+        <span v-else-if="acct.ratings && acct.ratings.soko"> · {{ acct.ratings.soko.rating }}<b v-if="acct.ratings.soko.rank!=='Unranked'" style="color:var(--hl)"> · {{ acct.ratings.soko.rank }}</b></span>
+        <a href="./" style="color:var(--hl);text-decoration:none;margin-left:6px" title="Account &amp; leaderboards">manage ⊞</a>
+      </div>
+
+      <div class="card">
+        <h2>Race to {{ need }} of {{ totalGoals }}</h2>
+        <div class="statline"><span style="color:var(--you)">You</span><span class="big" style="color:var(--you)">{{ heldYou }}</span></div>
+        <div class="statline"><span style="color:var(--ai)">{{ oppName }}</span><span class="big" style="color:var(--ai)">{{ heldOpp }}</span></div>
+        <div class="leg" style="margin-top:4px">Claimed goals lock permanently. First to <b>{{ need }}</b> wins; if both pass, the most claims wins.<span v-if="generic"> Any crate fits any goal here.</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Move (1 step / turn)</h2>
+        <div class="dpad">
+          <span></span><button :disabled="moveState[0]!=='ok'" :class="{rep:moveState[0]==='repeat'}" @click="move(0)">▲</button><span></span>
+          <button :disabled="moveState[2]!=='ok'" :class="{rep:moveState[2]==='repeat'}" @click="move(2)">◀</button><span></span><button :disabled="moveState[3]!=='ok'" :class="{rep:moveState[3]==='repeat'}" @click="move(3)">▶</button>
+          <span></span><button :disabled="moveState[1]!=='ok'" :class="{rep:moveState[1]==='repeat'}" @click="move(1)">▼</button><span></span>
+        </div>
+        <div class="leg" style="text-align:center;margin-top:4px">Greyed arrows hit a wall or would <b style="color:var(--hl)">repeat</b> the last position.</div>
+        <div class="row" style="margin-top:8px;justify-content:center">
+          <button :disabled="!myTurn" @click="pass" title="Pass — if both players pass in a row, the game ends and the most claims wins">Pass</button>
+        </div>
+        <div v-if="thinking" class="think" style="margin-top:8px;text-align:center">◉ {{ oppName }} moving…</div>
+      </div>
+
+      <div class="card">
+        <h2>New game</h2>
+        <div class="row" style="margin-bottom:8px">
+          <span style="color:var(--muted);font-size:13px;width:44px">Board</span>
+          <select v-model.number="mazeIdx" style="flex:1">
+            <option v-for="(m,i) in MAZES" :key="i" :value="i">{{ m.name }} · {{ m.slots.length }} goals</option>
+          </select>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <span style="color:var(--muted);font-size:13px;width:44px">Play as</span>
+          <select v-model="sideChoice" style="flex:1">
+            <option value="0">Green (moves first)</option>
+            <option value="1">Blue (moves second)</option>
+            <option value="random">Random</option>
+          </select>
+        </div>
+        <div class="row" style="margin-bottom:10px" v-if="isServer">
+          <span style="color:var(--muted);font-size:13px;width:44px">Level</span>
+          <div class="seg">
+            <button :class="{on:diff==='easy'}" @click="diff='easy'">Easy</button>
+            <button :class="{on:diff==='normal'}" @click="diff='normal'">Normal</button>
+            <button :class="{on:diff==='hard'}" @click="diff='hard'">Hard</button>
+          </div>
+        </div>
+        <div class="row">
+          <button class="primary" @click="isServer ? playAiOnline() : newOffline()">{{ isServer ? 'New AI game' : 'New game' }}</button>
+          <button v-if="isServer" @click="postSeek" title="Offer this board to other players">Offer to players</button>
+          <button v-if="online" @click="resignGame">Resign</button>
+          <button v-if="online" style="padding:6px 10px;font-size:12px" @click="newOffline">Practice offline</button>
+        </div>
+        <div class="row" v-if="isServer" style="margin-top:8px">
+          <label v-if="acct && !acct.is_guest" style="font-size:12px;color:var(--muted);cursor:pointer"><input type="checkbox" v-model="seekRated"> Rated</label>
+        </div>
+        <div v-if="notice" class="leg" style="margin-top:8px;color:var(--hl)">{{ notice }}</div>
+        <div v-if="isServer && (seeks.length || myGames.length)" style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+          <div v-if="myGames.length"><b style="font-size:13px">My games</b>
+            <div v-for="gm in myGames" :key="gm.id" class="row" style="justify-content:space-between;font-size:12px;margin:3px 0">
+              <a href="#" @click.prevent="openGame(gm.id)" :style="{color:gm.id===gid?'var(--hl)':'var(--ai)',textDecoration:'none'}">vs {{ gm.opponent }}</a>
+              <span style="display:flex;gap:6px;align-items:center">
+                <b v-if="gm.your_turn" style="color:var(--hl)">your turn</b><span v-else style="color:var(--muted)">waiting</span>
+                <button style="padding:2px 7px;font-size:12px" @click="endGame(gm)" title="End / abandon this game">✕</button></span></div>
+          </div>
+          <div v-if="seeks.length" :style="{marginTop: myGames.length?'8px':'0'}"><b style="font-size:13px">Open games</b>
+            <div v-for="s in seeks" :key="'s'+s.id" class="row" style="justify-content:space-between;font-size:12px;margin:3px 0">
+              <span>{{ s.mine?'Your offer':s.player }}<span v-if="!s.mine && !s.is_guest" style="color:var(--muted)"> ({{ s.rating }})</span>
+                <span style="color:var(--muted)"> · {{ s.rated?'rated':'casual' }}</span></span>
+              <button style="padding:4px 8px;font-size:12px" v-if="s.mine" @click="cancelSeek(s.id)">Cancel</button>
+              <button class="primary" style="padding:4px 8px;font-size:12px" v-else @click="acceptSeek(s.id)">Join</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <b style="font-size:13px">Bug report</b><span style="color:var(--muted);font-size:12px">something off? tell us</span>
+        </div>
+        <textarea v-model="bugText" rows="3" placeholder="Describe what went wrong…"
+                  style="width:100%;resize:vertical;background:#0c1020;color:var(--ink);border:1px solid #33415f;border-radius:8px;padding:8px;font-size:13px;font-family:inherit"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button v-if="isServer" @click="submitReport" :disabled="reportBusy" style="padding:7px 12px;font-size:13px">Submit to server</button>
+          <button @click="downloadReport" style="padding:7px 12px;font-size:13px">Download report</button>
+        </div>
+        <div v-if="reportMsg" style="margin-top:8px;font-size:12px;color:var(--hl)">{{ reportMsg }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="over" v-if="over">
+    <div class="box">
+      <div class="big" :style="{color:winSide===humanSide?'var(--you)':winSide>=0?'var(--ai)':'var(--muted)'}">
+        {{ winSide===humanSide?'You win 🏆':winSide>=0?(oppName+' wins'):'Draw' }}</div>
+      <div class="leg" style="margin:8px 0 14px">{{ heldYou }} vs {{ heldOpp }} goals claimed.</div>
+      <button class="primary" @click="isServer ? playAiOnline() : newOffline()">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+const G = window.GLYPH, CELL = 58, PASS = G.PASS;
+Vue.createApp({
+  data(){ return {
+    g:G.newGame(0), turn:0, humanSide:0, thinking:false, mazeIdx:0, CELL:CELL, MAZES:G.MAZES,
+    // online
+    adapter:null, acct:null, online:false, isPvp:false, busy:false,
+    gid:null, gameMeta:null, gameV:-1, _pollSeq:0, _oppRunning:false,
+    seeks:[], myGames:[], seekRated:false, diff:'normal',
+    sideChoice:'random', hadSeek:false, _seenGames:{}, _lobbyTimer:null, notice:null, _notT:null, diag:'detecting server…',
+    bugText:'', reportBusy:false, reportMsg:null, errorMsg:null, _errT:null,
+  }; },
+  computed:{
+    isServer(){ return this.adapter && this.adapter.mode==='server'; },
+    generic(){ return !!this.g.sc.anyGlyph; },
+    totalGoals(){ return this.g.sc.slots.length; },
+    need(){ return G.majority(this.g); },
+    heldYou(){ return G.owned(this.g, this.humanSide); },
+    heldOpp(){ return G.owned(this.g, 1-this.humanSide); },
+    oppName(){ return this.online && this.isPvp ? 'Opponent' : 'AI'; },
+    oppTag(){ return this.online && this.isPvp ? 'OPP' : 'AI'; },
+    boardName(){ return this.g.sc.name; },
+    gover(){ return G.over(this.g); },
+    offEnd(){ return this.online && this.gameMeta && this.gameMeta.status && this.gameMeta.status!=='active'; },
+    over(){ return this.gover || this.offEnd; },
+    winSide(){ if(this.gover) return G.winner(this.g);
+      if(this.offEnd){ const w=this.gameMeta.winner; return (w==='draw'||w==null)?-1:Number(w); } return -1; },
+    myTurn(){ return this.turn===this.humanSide && !this.over && !this.thinking && !this.busy; },
+    cells(){ const o=[]; for(let y=0;y<this.g.sc.H;y++) for(let x=0;x<this.g.sc.W;x++) o.push({k:x+','+y,x,y,wall:!!this.g.sc.walls[x+','+y]}); return o; },
+    edgeWalls(){ const C=this.CELL; return (this.g.sc.edgeRender||[]).map((e,i)=>{ const [ax,ay,bx,by]=e;
+      return bx>ax ? {k:i,x1:bx*C,y1:ay*C,x2:bx*C,y2:(ay+1)*C} : {k:i,x1:ax*C,y1:by*C,x2:(ax+1)*C,y2:by*C}; }); },
+    slotView(){ return this.g.sc.slots.map((s,i)=>({i,x:s.x,y:s.y,g:s.g,owner:this.g.owner[i]})); },
+    crateView(){ return this.g.crates.map((c,i)=>{ const si=G.slotAt(this.g,c.x,c.y);
+      const held=(si>=0 && this.g.owner[si]>=0 && (this.g.sc.anyGlyph || this.g.sc.slots[si].g===c.g)) ? this.g.owner[si] : -1;
+      return {k:i,x:c.x,y:c.y,g:c.g,held}; }); },
+    moveState(){ const s=this.humanSide, o={0:'wall',1:'wall',2:'wall',3:'wall'}; if(!this.myTurn) return o;
+      for(let d=0;d<4;d++) o[d] = !G.canMove(this.g,s,d) ? 'wall' : (G.repeats(this.g,s,d) ? 'repeat' : 'ok'); return o; },
+    statusText(){
+      if(this.over){ return this.winSide===this.humanSide?'You win':(this.winSide>=0?this.oppName+' wins':'Draw'); }
+      return this.myTurn ? 'Your move — arrow keys / D-pad' : this.oppName+' to move'; },
+  },
+  methods:{
+    _up(){ this.$forceUpdate(); },
+    applyViewBox(){ if(this.$refs.board) this.$refs.board.setAttribute('viewBox','0 0 '+(this.g.sc.W*CELL)+' '+(this.g.sc.H*CELL)); },
+    move(dir){ this.play(dir); },
+    pass(){ this.play(PASS); },
+    // unified move entry: offline applies + local AI; online sends to the server first, then mirrors it
+    async play(dir){
+      if(!this.myTurn) return;
+      if(dir!==PASS && (!G.canMove(this.g,this.humanSide,dir) || G.repeats(this.g,this.humanSide,dir))) return;
+      if(!this.online){
+        G.apply(this.g, this.humanSide, dir); G.remember(this.g); this._up();
+        if(this.over) return; this.turn=1-this.humanSide; this.aiGo(); return;
+      }
+      this.busy=true;
+      const r=await this._call(()=>this.adapter.moveAction(this.gid,{dir}));
+      this.busy=false;
+      if(!r || r.error) return;
+      G.apply(this.g, this.humanSide, dir); G.remember(this.g); this._syncMeta(r);
+      if(this.over){ this.refreshLobby(); return; }
+      this.turn=1-this.humanSide; this.opponentLoop();
+    },
+    aiGo(){                                    // offline: local engine plays the opponent
+      if(this.over) return;
+      const opp=1-this.humanSide; this.thinking=true; this._up();
+      setTimeout(()=>{
+        const d=G.aiMove(this.g, opp, this.g.sc.aiDepth||6);
+        G.apply(this.g, opp, d); G.remember(this.g); this.thinking=false;
+        this.turn=this.humanSide; this._up();
+      }, 200);
+    },
+    // ---- online plumbing ----
+    _call(fn){ return (async()=>{ try{ const r=await fn(); if(r&&r.error) this.showError(r.error); return r; }
+      catch(e){ this.showError('network error'); return null; } })(); },
+    showError(m){ this.errorMsg=m; clearTimeout(this._errT); this._errT=setTimeout(()=>{this.errorMsg=null;},4000); },
+    _syncMeta(r){ if(r&&r.meta) this.gameMeta=r.meta; if(r&&r.v!==undefined) this.gameV=r.v; this._up(); },
+    _boardIdxOf(meta){ const b=meta&&meta.board; const n=parseInt(b,10); return isNaN(n)?0:n; },
+    // rebuild the local engine state by replaying the server's action log
+    syncGame(moves){
+      let turn=0; this.g=G.newGame(this._boardIdxOf(this.gameMeta));
+      for(const mv of moves){ const a=(typeof mv.data==='string')?JSON.parse(mv.data):(mv.data||mv);
+        const d=(a&&a.dir!=null)?a.dir:PASS; G.apply(this.g, turn, d); G.remember(this.g);
+        if(G.winner(this.g)<0) turn=1-turn; }
+      this.turn=turn; this.sel=null; this.$nextTick(()=>this.applyViewBox()); this._up();
+    },
+    _enterGame(gid, humanSide, isPvp, meta, v){
+      this._pollSeq++; this.online=true; this.gid=gid; this.isPvp=!!isPvp;
+      this.humanSide=humanSide; this.gameMeta=meta||null; this.gameV=(v!=null)?v:-1; this.thinking=false; this.busy=false;
+      this.g=G.newGame(this._boardIdxOf(meta)); this.turn=0; this.$nextTick(()=>this.applyViewBox()); this._up();
+      this._resume();
+    },
+    async _resume(){
+      const log=await this._call(()=>this.adapter.getLog(this.gid));
+      if(log && log.log) this.syncGame(log.log);
+      const st=await this._call(()=>this.adapter.state(this.gid,-1));
+      if(st) this._syncMeta(st);
+      if(this.over){ this.refreshLobby(); return; }
+      if(this.turn!==this.humanSide) this.opponentLoop();
+    },
+    _side(){ return this.sideChoice==='random' ? (Math.random()<0.5?0:1) : Number(this.sideChoice); },
+    showNotice(m){ this.notice=m; clearTimeout(this._notT); this._notT=setTimeout(()=>{this.notice=null;},6000); },
+    // probe the server. Reports progress into `diag` at every step and hard-caps at 6s so it can never hang.
+    async _probe(tag){
+      this.diag = tag + ' → ' + location.origin + ' …'; this._up();
+      try{
+        const ctrl = new AbortController(); const to = setTimeout(()=>ctrl.abort(), 6000);
+        const r = await fetch('/api/v1/boards', {cache:'no-store', signal:ctrl.signal}); clearTimeout(to);
+        this.diag = tag + ' → HTTP ' + r.status + ' @ ' + location.origin; this._up();
+        return r.ok;
+      }catch(e){ this.diag = tag + ' → ' + (e&&e.name||'error') + ' ' + (e&&e.message||'') + ' @ ' + location.origin; this._up(); return false; }
+    },
+    // detect the server and switch this session to online play (used by the manual button + auto-connect)
+    async _goLive(){
+      this.adapter = new ServerAdapter(); this._up();
+      const r = await this.adapter.ensureAuth(); this.acct = r&&r.player ? r.player : null;
+      await this.refreshLobby();
+      if(!this._lobbyTimer) this._lobbyTimer = setInterval(()=>{ if(!this.gid && this.isServer) this.refreshLobby(); }, 5000);
+      const resume = (this.myGames||[]).find(g=>g.your_turn) || this.myGames[0];
+      if(resume) this.openGame(resume.id); else this.playAiOnline();
+    },
+    async goOnline(){                                   // manual "Go online" button
+      if(await this._probe('manual probe')){ try{ await this._goLive(); }catch(e){ this.diag='online setup error: '+(e&&e.message||e); } }
+      else this.showError('No game server reachable — see the status line under “Offline practice”.');
+    },
+    // background auto-detect: retry (non-blocking) until the server answers, then go online. Never throws out.
+    async _autoConnect(){
+      for(let i=1; i<=10; i++){
+        if(await this._probe('probe '+i)){ try{ await this._goLive(); }catch(e){ this.diag='connected; online setup error: '+(e&&e.message||e); } return; }
+        await new Promise(res=>setTimeout(res, 1200));
+      }
+      this.diag += ' — gave up; tap “Go online”.';
+    },
+    async playAiOnline(){
+      const r=await this._call(()=>this.adapter.newGameTyped('soko', this.diff, this._side(), this.mazeIdx));
+      if(!r||r.error||!r.id) return;
+      this._enterGame(r.id, (r.human_side!=null?r.human_side:0), false, r.meta, r.v); this.refreshLobby();
+    },
+    async opponentLoop(){
+      if(this.isPvp){ this.pvpPoll(); return; }
+      if(this._oppRunning) return;
+      this._oppRunning=true; const gid=this.gid, seq=this._pollSeq; this.thinking=true; let backoff=0;
+      while(this.gid===gid && this._pollSeq===seq && !this.over && this.turn!==this.humanSide){
+        let r=null; try{ r=await this.adapter.aiMove(gid); }catch(e){ r={error:'network error'}; }
+        if(this.gid!==gid || this._pollSeq!==seq) break;
+        if(r && r.error){ this.showError(r.error); backoff=Math.min(backoff?backoff*2:2500,15000); await new Promise(res=>setTimeout(res,backoff)); continue; }
+        if(!r || !r.move) break;
+        backoff=0; const d=(r.move.dir!=null)?r.move.dir:PASS; G.apply(this.g, 1-this.humanSide, d); G.remember(this.g);
+        this._syncMeta(r); if(!this.over) this.turn=this.humanSide;
+      }
+      this._oppRunning=false; this.thinking=false; if(this.over) this.refreshLobby();
+    },
+    async pvpPoll(){
+      const gid=this.gid, seq=++this._pollSeq;
+      while(this.gid===gid && this._pollSeq===seq && this.isPvp && this.gameMeta && this.gameMeta.status==='active'){
+        let r=null; try{ r=await this.adapter.state(gid,this.gameV,true); }catch(e){}
+        if(this.gid!==gid || this._pollSeq!==seq) return;
+        if(!r||r.error){ await new Promise(res=>setTimeout(res,3000)); continue; }
+        this._syncMeta(r);
+        const log=await this._call(()=>this.adapter.getLog(gid));
+        if(this.gid!==gid || this._pollSeq!==seq) return;
+        if(log && log.log) this.syncGame(log.log);
+        if(this.gameMeta.status!=='active'){ this.refreshLobby(); return; }
+      }
+    },
+    async resignGame(){ if(!this.online||!this.gid) return;
+      await this._call(()=>this.adapter.resign(this.gid));
+      const st=await this._call(()=>this.adapter.state(this.gid,-1)); if(st) this._syncMeta(st); this.refreshLobby(); },
+    async refreshLobby(){
+      if(!this.isServer) return;
+      try{
+        const [seeks,games,me]=await Promise.all([this.adapter.getSeeks(),this.adapter.myGames(),this.adapter.me()]);
+        if(me&&me.player) this.acct=me.player;
+        this.seeks=((seeks&&seeks.seeks)||[]).filter(s=>s.game_type==='soko');
+        this.myGames=((games&&games.games)||[]).filter(g=>g.game_type==='soko');
+        // your offer got accepted -> a fresh pvp game appears: jump into it (unless already in an active pvp)
+        const inActivePvp=this.isPvp && this.gameMeta && this.gameMeta.status==='active';
+        if(this.hadSeek && !this.seeks.some(s=>s.mine) && !inActivePvp){
+          const fresh=this.myGames.find(g=>g.type==='pvp' && !this._seenGames[g.id]);
+          if(fresh){ this.hadSeek=false; this.openGame(fresh.id); }
+        }
+        for(const g of this.myGames) if(g.id===this.gid) this._seenGames[g.id]=true;
+      }catch(e){}
+    },
+    async postSeek(){
+      const pref=this.sideChoice==='0'?'white':this.sideChoice==='1'?'black':'random';
+      const r=await this._call(()=>this.adapter.createSeek(String(this.mazeIdx),[],pref,this.seekRated,null,'soko'));
+      if(r&&r.error) return;
+      this.hadSeek=true; this.showNotice('Game offered — it starts automatically when someone joins.'); this.refreshLobby();
+    },
+    async cancelSeek(id){ await this._call(()=>this.adapter.cancelSeek(id)); this.hadSeek=false; this.refreshLobby(); },
+    async acceptSeek(id){ const r=await this._call(()=>this.adapter.acceptSeek(id)); if(r&&r.id&&r.meta){ this.hadSeek=false; this._seenGames[r.id]=true; this._enterGame(r.id, r.meta.your_side, true, r.meta, r.v); this.refreshLobby(); } },
+    async endGame(g){
+      let r=await this._call(()=>this.adapter.abort(g.id));
+      if(r&&r.error && g.type==='pvp'){ if(!confirm('Resign the game against '+g.opponent+'?')) return; this.errorMsg=null; r=await this._call(()=>this.adapter.resign(g.id)); }
+      if(r&&r.error) return;
+      await this.refreshLobby();
+      if(g.id===this.gid) this.newOffline();
+    },
+    async openGame(id){ const r=await this._call(()=>this.adapter.state(id,-1)); if(r&&r.meta) this._enterGame(id, r.meta.your_side, r.meta.type==='pvp', r.meta, r.v); },
+    // ---- offline ----
+    newOffline(){
+      this._pollSeq++; this.online=false; this.isPvp=false; this.gid=null; this.gameMeta=null; this.humanSide=0;
+      this.busy=false; this.thinking=false;
+      this.g=G.newGame(this.mazeIdx);
+      this.turn = this.sideChoice==='0' ? 0 : this.sideChoice==='1' ? 1 : (Math.random()<0.5?0:1);  // who moves first
+      this.$nextTick(()=>this.applyViewBox()); this._up();
+      if(this.turn!==this.humanSide) this.aiGo();
+    },
+    // ---- bug report ----
+    _reportInfo(){ return { online:this.online, is_pvp:this.isPvp, your_side:this.humanSide, board:this.g.sc.name,
+      owner:this.g.owner, moves:this.g.moves, gameMeta:this.gameMeta||null,
+      browser:navigator.userAgent, screen:{width:window.innerWidth,height:window.innerHeight} }; },
+    async submitReport(){
+      if(this.reportBusy) return; const desc=(this.bugText||'').trim();
+      if(!desc){ this.showError('Please describe the problem first.'); return; }
+      this.reportBusy=true; this.reportMsg=null;
+      try{ const r=await this.adapter.submitReport({description:desc, game_id:this.gid||null, client_info:this._reportInfo()});
+        if(r&&r.error) this.showError(r.error); else { this.bugText=''; this.reportMsg='Thanks — report submitted for review.'; }
+      }catch(e){ this.showError('Could not submit the report.'); }
+      this.reportBusy=false;
+    },
+    async downloadReport(){
+      let serverLog=[]; if(this.gid){ try{ const d=await this.adapter.getLog(this.gid); if(d&&d.log) serverLog=d.log; }catch(e){} }
+      const report={ report_type:'soko_bug_report', downloaded:new Date().toISOString(),
+        description:this.bugText||'(no description)', game_id:this.gid||null, move_log:serverLog, client_info:this._reportInfo() };
+      const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`soko-report-${this.gid||'offline'}.json`; a.click(); URL.revokeObjectURL(a.href);
+      this.reportMsg='Report downloaded.';
+    },
+    onKey(e){ const m={ArrowUp:0,ArrowDown:1,ArrowLeft:2,ArrowRight:3}; if(m[e.key]!=null){ e.preventDefault(); this.move(m[e.key]); } },
+  },
+  mounted(){
+    // 1) register the PWA worker FIRST so it always happens, independent of server detection
+    if('serviceWorker' in navigator) navigator.serviceWorker.register('soko-sw.js').catch(()=>{});
+    // 2) render a playable offline board immediately (never blocks on the network)
+    try{ this.newOffline(); }catch(e){ this.diag='newOffline error: '+(e&&e.message||e); }
+    // 3) detect the server in the background and auto-upgrade to online when it answers (offer/lobby appear)
+    this._autoConnect();
+    // 4) focus the board for keyboard play — best-effort (root may be a fragment/comment node)
+    this.$nextTick(()=>{ const el=this.$el&&this.$el.focus?this.$el:(this.$refs&&this.$refs.board); if(el&&el.focus) try{el.focus();}catch(_){} });
+  }
+}).mount('#app');
+})();
+</script>
+</body>
+</html>

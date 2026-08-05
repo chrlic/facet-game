@@ -190,7 +190,7 @@
         </div>
         <div class="row">
           <button class="act primary" @click="isServer ? playAiOnline() : newGame()">New AI game</button>
-          <button class="act" v-if="isServer" @click="createSeek">Find opponent</button>
+          <button class="act" v-if="isServer" @click="createSeek" title="Offer this game to other players">Offer to players</button>
           <button class="act" v-if="online" @click="resignGame">Resign</button>
           <button class="act" @click="undo" :disabled="!canUndo">Undo</button>
           <button class="act" @click="flip=!flip">Flip</button>
@@ -208,7 +208,9 @@
         <div v-if="isServer && (seeks.length || myGames.length)" style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
           <div v-for="g in myGames" :key="g.id" class="row" style="justify-content:space-between;font-size:12px;margin:3px 0">
             <a href="#" @click.prevent="openGame(g.id)" :style="{color:g.id===gid?'var(--hl)':'var(--dot)'}">vs {{g.opponent}}</a>
-            <b v-if="g.your_turn" style="color:var(--hl)">your turn</b><span v-else style="color:var(--muted)">waiting</span></div>
+            <span style="display:flex;gap:6px;align-items:center">
+              <b v-if="g.your_turn" style="color:var(--hl)">your turn</b><span v-else style="color:var(--muted)">waiting</span>
+              <button class="act" style="padding:2px 7px;font-size:12px" @click="endGame(g)" title="End / abandon">✕</button></span></div>
           <div v-for="s in seeks" :key="'s'+s.id" class="row" style="justify-content:space-between;font-size:12px;margin:3px 0">
             <span>{{s.mine?'Your offer':s.player}} <span style="color:var(--muted)">{{s.rated?'· rated':''}}</span></span>
             <button class="act" style="padding:4px 8px;font-size:12px" v-if="s.mine" @click="cancelSeek(s.id)">Cancel</button>
@@ -308,7 +310,7 @@ createApp({
       // --- online multiplayer (server-backed) ---
       adapter:null, acct:null, online:false, isPvp:false, humanSide:0, busy:false,
       gid:null, gameMeta:null, gameV:-1, _pollSeq:0, _lobbyTimer:null,
-      seeks:[], myGames:[], seekRated:false,
+      seeks:[], myGames:[], seekRated:false, hadSeek:false, _seenGames:{},
       authForm:null, authName:'', authPass:'', authBusy:false, recoveryCode:null,
       lbOpen:false, lbRows:[], errorMsg:null, _errT:null,
       bugText:'', reportBusy:false, reportMsg:null, _oppRunning:false,
@@ -515,14 +517,28 @@ createApp({
       this.acct=me&&me.player?me.player:this.acct;
       this.seeks=((seeks&&seeks.seeks)||[]).filter(s=>s.game_type==='octachess');
       this.myGames=((games&&games.games)||[]).filter(g=>g.game_type==='octachess');
+      // your offer got accepted -> a fresh pvp game appears: jump into it (unless already in an active pvp)
+      const inActivePvp=this.isPvp && this.gameMeta && this.gameMeta.status==='active';
+      if(this.hadSeek && !this.seeks.some(s=>s.mine) && !inActivePvp){
+        const fresh=this.myGames.find(g=>g.type==='pvp' && !this._seenGames[g.id]);
+        if(fresh){ this.hadSeek=false; this.openGame(fresh.id); }
+      }
+      for(const g of this.myGames) if(g.id===this.gid) this._seenGames[g.id]=true;
     },
     async createSeek(){
       const side=this.sideChoice==='w'?'white':this.sideChoice==='b'?'black':'either';
       const r=await this._call(()=>this.adapter.createSeek('standard',[],side,this.seekRated,null,'octachess'));
-      if(r&&!r.error) this.refreshLobby();
+      if(r&&!r.error){ this.hadSeek=true; this.showError('Game offered — it starts automatically when someone joins.'); this.refreshLobby(); }
     },
-    async cancelSeek(id){ await this._call(()=>this.adapter.cancelSeek(id)); this.refreshLobby(); },
-    async acceptSeek(id){ const r=await this._call(()=>this.adapter.acceptSeek(id)); if(r&&r.id&&r.meta) this._enterGame(r.id, r.meta.your_side, true, r.meta, r.v); },
+    async cancelSeek(id){ await this._call(()=>this.adapter.cancelSeek(id)); this.hadSeek=false; this.refreshLobby(); },
+    async acceptSeek(id){ const r=await this._call(()=>this.adapter.acceptSeek(id)); if(r&&r.id&&r.meta){ this.hadSeek=false; this._seenGames[r.id]=true; this._enterGame(r.id, r.meta.your_side, true, r.meta, r.v); this.refreshLobby(); } },
+    async endGame(g){
+      let r=await this._call(()=>this.adapter.abort(g.id));
+      if(r&&r.error && g.type==='pvp'){ if(!confirm('Resign the game against '+g.opponent+'?')) return; this.errorMsg=null; r=await this._call(()=>this.adapter.resign(g.id)); }
+      if(r&&r.error) return;
+      await this.refreshLobby();
+      if(g.id===this.gid){ this._pollSeq++; this.newGame(); }
+    },
     async openGame(id){ const r=await this._call(()=>this.adapter.state(id,-1)); if(r&&r.meta) this._enterGame(id, r.meta.your_side, r.meta.type==='pvp', r.meta, r.v); },
     async toggleLeaderboard(){ this.lbOpen=!this.lbOpen; if(this.lbOpen){ const r=await this._call(()=>this.adapter.leaderboard('octachess')); this.lbRows=(r&&r.leaderboard)||[]; } },
     async submitAuth(){ const n=this.authName.trim(); if(!n) return; this.authBusy=true; let r;

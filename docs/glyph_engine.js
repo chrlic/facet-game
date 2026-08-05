@@ -272,13 +272,14 @@
 
   function owned(s, player) { var n = 0; for (var i = 0; i < s.owner.length; i++) if (s.owner[i] === player) n++; return n; }
   function allClaimed(s) { for (var i = 0; i < s.owner.length; i++) if (s.owner[i] < 0) return false; return true; }
-  function over(s) { var m = majority(s); return owned(s, 0) >= m || owned(s, 1) >= m || allClaimed(s) || s.passes >= 2; }
-  // winner: first to claim a majority of slots wins. If the game is stopped short (both passed / all locked
-  // with no majority), the player holding more claims wins. Returns -1 for "still going" and for a true draw.
+  var MOVE_CAP = 300;   // backstop so a game always terminates (matches the server engine)
+  function over(s) { var m = majority(s); return owned(s, 0) >= m || owned(s, 1) >= m || allClaimed(s) || s.passes >= 2 || s.moves >= MOVE_CAP; }
+  // winner: first to claim a majority of slots wins. If the game is stopped short (both passed / all locked /
+  // move cap), the player holding more claims wins. Returns -1 for "still going" and for a true draw.
   function winner(s) {
     var m = majority(s);
     if (owned(s, 0) >= m) return 0; if (owned(s, 1) >= m) return 1;
-    if (s.passes >= 2 || allClaimed(s)) return owned(s, 0) > owned(s, 1) ? 0 : (owned(s, 1) > owned(s, 0) ? 1 : -1);
+    if (s.passes >= 2 || allClaimed(s) || s.moves >= MOVE_CAP) return owned(s, 0) > owned(s, 1) ? 0 : (owned(s, 1) > owned(s, 0) ? 1 : -1);
     return -1;
   }
 
